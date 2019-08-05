@@ -581,7 +581,9 @@ bool netCDFLayer::Create(char **papszOptions,
                 throw nccfdriver::SG_Exception_BadFeature();
             }
 
-            int writableSGContVarID = nccfdriver::write_Geometry_Container(m_poDS->cdfid, this->GetName(), m_layerSGDefn.getWritableType(), coordNames);
+            int writableSGContVarID = nccfdriver::write_Geometry_Container(m_poDS->cdfid,
+                                                                           this->GetName(),
+                                                                           m_layerSGDefn.getWritableType(), coordNames);
             m_layerSGDefn.initializeNewContainer(writableSGContVarID);
 
             if(newbufsize >= 4096)
@@ -608,7 +610,7 @@ bool netCDFLayer::Create(char **papszOptions,
 
                 if(status != NC_NOERR)
                 {
-                    throw nccfdriver::SGWriter_Exception_NCWriteFailure(m_layerSGDefn.get_containerName().c_str(), CF_GRD_MAPPING, "attribute"); 
+                    throw nccfdriver::SGWriter_Exception_NCWriteFailure(m_layerSGDefn.get_containerName(), CF_GRD_MAPPING, "attribute"); 
                 }
 
                 std::vector<int>& ncv = m_layerSGDefn.get_nodeCoordVarIDs();

@@ -398,6 +398,10 @@ namespace nccfdriver
         OGR_NCScribe & ncb;
         geom_t writableType = NONE;
         std::string containerVarName;
+        std::string nodeCountVarName;
+        std::string partNodeCountVarName;
+        std::string irVarName;
+        std::vector<std::string> node_coordinates_varNames;
         int containerVar_realID = INVALID_VAR_ID;
         bool interiorRingDetected = false; // flips on when an interior ring polygon has been detected
         std::vector<int> node_coordinates_varIDs;// ids in X, Y (and then possibly Z) order
@@ -410,12 +414,17 @@ namespace nccfdriver
         size_t next_write_pos_node_coord = 0;
         size_t next_write_pos_node_count = 0;
         size_t next_write_pos_pnc = 0;
+        size_t featureCount = 0;
 
         public:
             geom_t getWritableType() { return this->writableType; }
             void writeSGeometryFeature(SGeometry_Feature& ft);
             int get_containerRealID() { return this->containerVar_realID; }
-            std::string get_containerName() { return this->containerVarName; }
+            const char* get_containerName() { return this->containerVarName.c_str(); }
+            const char* get_nodeCountName() { return this->nodeCountVarName.c_str(); }
+            const char* get_partNodeCountVarName() { return this->partNodeCountVarName.c_str(); }
+            const char* get_irVarName() { return this->irVarName.c_str(); }
+            const char* get_nodeCoordName(int index) { return this-> node_coordinates_varNames[index].c_str(); }
             int get_node_count_dimID() { return this->node_count_dimID; }
             int get_node_coord_dimID() { return this->node_coordinates_dimID; }
             int get_pnc_dimID() { return this->pnc_dimID; }
@@ -427,6 +436,7 @@ namespace nccfdriver
             size_t get_next_write_pos_pnc() { return this->next_write_pos_pnc; }
             bool getInteriorRingDetected() { return this->interiorRingDetected; }
             void initializeNewContainer(int containerVID);
+            void incFeatureCount() { featureCount++; }
             ncLayer_SG_Metadata(int & i_ncID, geom_t geo, netCDFVID& ncdf, OGR_NCScribe& scribe);
     };
 
