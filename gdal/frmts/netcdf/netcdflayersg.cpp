@@ -226,10 +226,15 @@ void netCDFDataset::SGCommitPendingTransaction()
                 nccfdriver::ncLayer_SG_Metadata& layerMD = papoLayers[layerInd]->getLayerSGMetadata();
                 nccfdriver::geom_t wType = layerMD.getWritableType();
 
+                // Delete empty layer(s) if they exist
+                
+
                 // Resize node coordinates
                 int ncoord_did = layerMD.get_node_coord_dimID();
                 if(ncoord_did != nccfdriver::INVALID_DIM_ID)
                 {
+                    if(layerMD.get_next_write_pos_node_coord() == 0)
+                        nc_del_vdim(ncoord_did);  // don't allow empties
                     vcdf.nc_resize_vdim(ncoord_did, layerMD.get_next_write_pos_node_coord());
                 }
 
@@ -239,6 +244,8 @@ void netCDFDataset::SGCommitPendingTransaction()
                     int ncount_did = layerMD.get_node_count_dimID();
                     if(ncount_did != nccfdriver::INVALID_DIM_ID)
                     {
+                        if(layerMD.get_next_write_pos_node_count() == 0)
+                            nc_del_vdim(ncount_did);  // don't allow empties
                         vcdf.nc_resize_vdim(ncount_did, layerMD.get_next_write_pos_node_count());
                     }
                 }
@@ -249,6 +256,8 @@ void netCDFDataset::SGCommitPendingTransaction()
                     int pnc_did = layerMD.get_pnc_dimID();
                     if(pnc_did != nccfdriver::INVALID_DIM_ID)
                     {
+                        if(layerMD.get_next_write_pos_pnc() == 0)
+                            nc_del_vdim(pnc_did);  // don't allow empties
                         vcdf.nc_resize_vdim(pnc_did, layerMD.get_next_write_pos_pnc());
                     }
                 }
