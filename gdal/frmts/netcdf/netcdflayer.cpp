@@ -73,8 +73,8 @@ netCDFLayer::netCDFLayer(netCDFDataset *poDS,
         m_nParentIndexVarID(-1),
         m_SGeometryFeatInd(0),
         m_poLayerConfig(nullptr),
-        m_layerSGDefn(poDS->cdfid, nccfdriver::OGRtoRaw(eGeomType),
-                      poDS->vcdf, poDS->GeometryScribe)
+        m_layerSGDefn(poDS->vcdf, nccfdriver::OGRtoRaw(eGeomType),
+                      poDS->GeometryScribe)
 {
     m_uXVarNoData.nVal64 = 0;
     m_uYVarNoData.nVal64 = 0;
@@ -581,8 +581,7 @@ bool netCDFLayer::Create(char **papszOptions,
                 throw nccfdriver::SG_Exception_BadFeature();
             }
 
-            m_layerSGDefn.write_Geometry_Container(m_poDS->cdfid,
-                                                   this->GetName(),
+            m_layerSGDefn.write_Geometry_Container(this->GetName(),
                                                    m_layerSGDefn.getWritableType(), coordNames);
             m_layerSGDefn.initializeNewContainer();
 

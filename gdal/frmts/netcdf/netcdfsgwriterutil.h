@@ -392,8 +392,6 @@ namespace nccfdriver
 
     class ncLayer_SG_Metadata
     {
-        //int & ncID;
-
         netCDFVID& vDataset;
         OGR_NCScribe & ncb;
         geom_t writableType = NONE;
@@ -448,11 +446,10 @@ namespace nccfdriver
 			* std::vector<..> node_coordinate_names - variable names corresponding to each axis
 			* Only writes attributes that are for sure required. i.e. does NOT required interior ring for anything or part node count for Polygons
 			*
-			* Returns: geometry container variable ID
 			*/
-			int write_Geometry_Container(int ncID, const std::string& name, geom_t geometry_type, const std::vector<std::string> & node_coordinate_names);
+			void write_Geometry_Container(const std::string& name, geom_t geometry_type, const std::vector<std::string> & node_coordinate_names);
 
-			ncLayer_SG_Metadata(int & i_ncID, geom_t geo, netCDFVID& ncdf, OGR_NCScribe& scribe);
+			ncLayer_SG_Metadata(netCDFVID& ncdf, geom_t geo, OGR_NCScribe& scribe);
     };
 
     /* WBufferManager

@@ -227,8 +227,10 @@ void netCDFDataset::SGCommitPendingTransaction()
                 nccfdriver::geom_t wType = layerMD.getWritableType();
 
                 /* Delete empty layer(s) if they exist */
-				if (layerMD.getWrittenFeatureCount() == 0)
+				if (layerMD.getWrittenFeatureCount() == 0 && layerMD.get_containerID() != nccfdriver::INVALID_VAR_ID)
 				{
+					CPLError(CE_Warning, CPLE_NotSupported, "Featureless layer [%s] detected. It will be dropped in the target dataset",
+					layerMD.get_containerName());
 					vcdf.nc_del_vvar(layerMD.get_containerID());
 				}
 
@@ -280,6 +282,7 @@ void netCDFDataset::SGCommitPendingTransaction()
 
                     if(geometry_type == nccfdriver::POLYGON) 
                     {
+                        // Delete part node count attribute
                         vcdf.nc_del_vatt(layerMD.get_containerID(), CF_SG_PART_NODE_COUNT);
 
                         // Invalidate variable writes as well - Part Node Count

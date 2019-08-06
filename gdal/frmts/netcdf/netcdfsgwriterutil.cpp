@@ -208,18 +208,13 @@ namespace nccfdriver
         this->geometry_ref = ft.GetGeometryRef();
     }
 
-	int ncLayer_SG_Metadata::write_Geometry_Container
-    (
-        int ncID, const std::string& name, geom_t geometry_type,
-		const std::vector<std::string> & node_coordinate_names
-	)
+	void ncLayer_SG_Metadata::write_Geometry_Container (const std::string& name, geom_t geometry_type,
+		                                            const std::vector<std::string> & node_coordinate_names)
 	{
-
-		int write_var_id;
-
 		// Define geometry container variable
-		write_var_id = this->vDataset.nc_def_vvar(name.c_str(), NC_FLOAT, 0, nullptr);
+		this->containerVarID = this->vDataset.nc_def_vvar(name.c_str(), NC_FLOAT, 0, nullptr);
 		this->containerVarName = name;
+                int write_var_id = this->containerVarID;
 
 		/* Geometry Type Attribute
 		* -
@@ -291,8 +286,6 @@ namespace nccfdriver
 			std::string& ir_atr_str = this->irVarName;
 			vDataset.nc_put_vatt_text(write_var_id, CF_SG_INTERIOR_RING, ir_atr_str.c_str());
 		}
-
-		return write_var_id;
 	}
 
     void ncLayer_SG_Metadata::initializeNewContainer()
@@ -329,7 +322,7 @@ namespace nccfdriver
             // For interior ring too (for POLYGON and MULTIPOLYGON); there's always an assumption
             // that interior rings really do exist until the very end in which case it's known whether or not
             // that assumption was true or false (if false, this (and PNC attribute for Polygons) will just be deleted)
-            if(this->writableType == POLYGON || this->writableType == MULTIPOLYGON && this->irVarName != "")
+            if((this->writableType == POLYGON || this->writableType == MULTIPOLYGON) && this->irVarName != "")
             {
                 intring_varID = ncdf.nc_def_vvar(this->get_irVarName(), NC_INT, 1, &pnc_dimID);
             }
@@ -364,7 +357,7 @@ namespace nccfdriver
         }
     }
 
-    ncLayer_SG_Metadata::ncLayer_SG_Metadata(int & i_ncID, geom_t geo, netCDFVID& ncdf, OGR_NCScribe& ncs) :
+    ncLayer_SG_Metadata::ncLayer_SG_Metadata(netCDFVID& ncdf, geom_t geo, OGR_NCScribe& ncs) :
         vDataset(ncdf),
         ncb(ncs),
         writableType(geo)
