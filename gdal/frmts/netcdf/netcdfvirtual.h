@@ -96,6 +96,11 @@ namespace nccfdriver
              */
             virtual void vsync(int realncid, int realvarid) = 0;
 
+			/* getName(...)
+			 * Get attribute name
+			 */
+			virtual std::string& getName() = 0;
+
             /*  ~netCDFVAttribute()
              * Virtual destructor
              */
@@ -112,6 +117,8 @@ namespace nccfdriver
                 name(a_name),
                 value(*a_value)
             {}
+
+			std::string& getName() override { return name; }
 
             void vsync(int realncid, int realvarid) override
             {
@@ -137,6 +144,7 @@ namespace nccfdriver
                 value(a_value)
             {}
 
+			std::string& getName() override { return this->name; }
             void vsync(int realncid, int realvarid) override;
     };
 
@@ -287,7 +295,7 @@ namespace nccfdriver
              */
             void nc_vmap();
 
-                        // Attribute function(s)
+            // Attribute function(s)
             template<class attrC, class attrT> void nc_put_vatt_generic(int varid, const char* name, const attrT* out)
             {
 
@@ -305,6 +313,12 @@ namespace nccfdriver
             void nc_put_vatt_double(int varid, const char* name, const double* out);
             void nc_put_vatt_float(int varid, const char* name, const float* out);
             void nc_put_vatt_byte(int varid, const char* name, const signed char* out);
+
+			/* nc_del_vatt
+			 * Only works for virtual IDs
+			 * Use nc_del_att for real IDs
+			 */
+			void nc_del_vatt(int varid, const char* name);
 
             // Writing Functions
             template<class out_T> void nc_put_vvar_generic(int varid, const size_t* index, const out_T* out)

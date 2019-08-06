@@ -208,44 +208,109 @@ namespace nccfdriver
         this->geometry_ref = ft.GetGeometryRef();
     }
 
-    void ncLayer_SG_Metadata::initializeNewContainer(int containerVID)
-    {
-        this->containerVar_realID = containerVID;
+	int ncLayer_SG_Metadata::write_Geometry_Container
+    (
+        int ncID, const std::string& name, geom_t geometry_type,
+		const std::vector<std::string> & node_coordinate_names
+	)
+	{
 
+		int write_var_id;
+
+		// Define geometry container variable
+		write_var_id = this->vDataset.nc_def_vvar(name.c_str(), NC_FLOAT, 0, nullptr);
+		this->containerVarName = name;
+
+		/* Geometry Type Attribute
+		* -
+		*/
+
+		// Next, go on to add attributes needed for each geometry type
+		std::string geometry_str =
+			(geometry_type == POINT || geometry_type == MULTIPOINT) ? CF_SG_TYPE_POINT :
+			(geometry_type == LINE || geometry_type == MULTILINE) ? CF_SG_TYPE_LINE :
+			(geometry_type == POLYGON || geometry_type == MULTIPOLYGON) ? CF_SG_TYPE_POLY :
+			""; // obviously an error condition...
+
+		if (geometry_str == "")
+		{
+			throw SG_Exception_BadFeature();
+		}
+
+		// Add the geometry type attribute
+		vDataset.nc_put_vatt_text(write_var_id, CF_SG_GEOMETRY_TYPE, geometry_str.c_str());
+
+		/* Node Coordinates Attribute
+		* -
+		*/
+		std::string ncoords_atr_str = "";
+
+		for (size_t itr = 0; itr < node_coordinate_names.size(); itr++)
+		{
+			ncoords_atr_str += node_coordinate_names[itr];
+			this->node_coordinates_varNames.push_back(node_coordinate_names[itr]);
+			if (itr < node_coordinate_names.size() - 1)
+			{
+				ncoords_atr_str += " ";
+			}
+		}
+
+		vDataset.nc_put_vatt_text(write_var_id, CF_SG_NODE_COORDINATES, ncoords_atr_str.c_str());
+
+		// The previous two attributes are all that are required from POINT
+
+
+		/* Node_Count Attribute
+		* (not needed for POINT)
+		*/
+		if (geometry_type != POINT)
+		{
+			this->nodeCountVarName = name + "_node_count";
+			std::string& nodecount_atr_str = this->nodeCountVarName;
+			vDataset.nc_put_vatt_text(write_var_id, CF_SG_NODE_COUNT, nodecount_atr_str.c_str());
+		}
+
+		/* Part_Node_Count Attribute
+		* (only needed for MULTILINE, MULTIPOLYGON, and (potentially) POLYGON)
+		*/
+		if (geometry_type == MULTILINE || geometry_type == MULTIPOLYGON || geometry_type == POLYGON)
+		{
+			this->partNodeCountVarName = name + "_part_node_count";
+			std::string& pnc_atr_str = this->partNodeCountVarName;
+			vDataset.nc_put_vatt_text(write_var_id, CF_SG_PART_NODE_COUNT, pnc_atr_str.c_str());
+
+		}
+
+		/* Interior Ring Attribute
+		* (only needed potentially for MULTIPOLYGON and POLYGON)
+		*/
+
+		if (geometry_type == MULTIPOLYGON || geometry_type == POLYGON)
+		{
+			this->irVarName = name + "_interior_ring";
+			std::string& ir_atr_str = this->irVarName;
+			vDataset.nc_put_vatt_text(write_var_id, CF_SG_INTERIOR_RING, ir_atr_str.c_str());
+		}
+
+		return write_var_id;
+	}
+
+    void ncLayer_SG_Metadata::initializeNewContainer()
+    {
         netCDFVID& ncdf = this->vDataset;
         geom_t geo = this->writableType;
 
-         // Define some virtual dimensions, and some virtual variables
-        char container_name[NC_MAX_CHAR + 1] = {0};
-        char node_coord_names[NC_MAX_CHAR + 1] = {0};
+        // Define some virtual dimensions, and some virtual variables
 
         // Set default values
         pnc_varID = INVALID_VAR_ID;
         pnc_dimID = INVALID_DIM_ID;
         intring_varID = INVALID_VAR_ID;
 
-        int err_code;
-        err_code = nc_inq_varname(ncID, containerVar_realID, container_name);
-        NCDF_ERR(err_code);
-        if (err_code != NC_NOERR)
-        {
-            throw SGWriter_Exception_NCInqFailure("new layer", "geometry container", "var name of");
-        }
-
-        this->containerVarName = std::string(container_name);
-
         // Node Coordinates - Dim
         std::string nodecoord_name = containerVarName + "_" + std::string(CF_SG_NODE_COORDINATES);
 
         node_coordinates_dimID = ncdf.nc_def_vdim(nodecoord_name.c_str(), 1);
-
-        // Node Coordinates - Variable Names
-        err_code = nc_get_att_text(ncID, containerVar_realID, CF_SG_NODE_COORDINATES, node_coord_names);
-        NCDF_ERR(err_code);
-        if (err_code != NC_NOERR)
-        {
-            throw SGWriter_Exception_NCInqFailure(containerVarName.c_str(), CF_SG_NODE_COORDINATES, "varName");
-        }
 
         // Node Count
         if(geo != POINT)
@@ -256,42 +321,35 @@ namespace nccfdriver
         }
 
         // Do the same for part node count, if it exists
-        char pnc_name[NC_MAX_CHAR + 1] = {0};
-        err_code = nc_get_att_text(ncID, containerVar_realID, CF_SG_PART_NODE_COUNT, pnc_name);
-
-
-        if(err_code == NC_NOERR)
+        if(this->partNodeCountVarName != "")
         {
-            pnc_dimID = ncdf.nc_def_vdim(pnc_name, 1);
-            pnc_varID = ncdf.nc_def_vvar(pnc_name, NC_INT, 1, &pnc_dimID);
-
-            char ir_name[NC_MAX_CHAR + 1] = {0};
-            nc_get_att_text(ncID, containerVar_realID, CF_SG_INTERIOR_RING, ir_name);
+            pnc_dimID = ncdf.nc_def_vdim(this->get_partNodeCountVarName(), 1);
+            pnc_varID = ncdf.nc_def_vvar(this->get_partNodeCountVarName(), NC_INT, 1, &pnc_dimID);
 
             // For interior ring too (for POLYGON and MULTIPOLYGON); there's always an assumption
             // that interior rings really do exist until the very end in which case it's known whether or not
             // that assumption was true or false (if false, this (and PNC attribute for Polygons) will just be deleted)
-            if(this->writableType == POLYGON || this->writableType == MULTIPOLYGON)
+            if(this->writableType == POLYGON || this->writableType == MULTIPOLYGON && this->irVarName != "")
             {
-                intring_varID = ncdf.nc_def_vvar(ir_name, NC_INT, 1, &pnc_dimID);
+                intring_varID = ncdf.nc_def_vvar(this->get_irVarName(), NC_INT, 1, &pnc_dimID);
             }
         }
 
         // Node coordinates Var Definitions
         int new_varID;
-        CPLStringList aosNcoord(CSLTokenizeString2(node_coord_names, " ", 0));
+		std::vector<std::string>& aosNcoord = this->node_coordinates_varNames;
 
         if(aosNcoord.size() < 2)
             throw SGWriter_Exception();
 
         // first it's X
-        new_varID = ncdf.nc_def_vvar(aosNcoord[0], NC_DOUBLE, 1, &node_coordinates_dimID);
+        new_varID = ncdf.nc_def_vvar(aosNcoord[0].c_str(), NC_DOUBLE, 1, &node_coordinates_dimID);
         ncdf.nc_put_vatt_text(new_varID, CF_AXIS, CF_SG_X_AXIS);
 
         this->node_coordinates_varIDs.push_back(new_varID);
 
         // second it's Y
-        new_varID = ncdf.nc_def_vvar(aosNcoord[1], NC_DOUBLE, 1, &node_coordinates_dimID);
+        new_varID = ncdf.nc_def_vvar(aosNcoord[1].c_str(), NC_DOUBLE, 1, &node_coordinates_dimID);
         ncdf.nc_put_vatt_text(new_varID, CF_AXIS, CF_SG_Y_AXIS);
 
         this->node_coordinates_varIDs.push_back(new_varID);
@@ -299,25 +357,24 @@ namespace nccfdriver
         // (and perhaps) third it's Z
         if(aosNcoord.size() > 2)
         {
-            new_varID = ncdf.nc_def_vvar(aosNcoord[2], NC_DOUBLE, 1, &node_coordinates_dimID);
+            new_varID = ncdf.nc_def_vvar(aosNcoord[2].c_str(), NC_DOUBLE, 1, &node_coordinates_dimID);
             ncdf.nc_put_vatt_text(new_varID, CF_AXIS, CF_SG_Z_AXIS);
 
             this->node_coordinates_varIDs.push_back(new_varID);
         }
     }
 
-/*    void ncLayer_SG_Metadata::scanExistingContainer(int containerVID)
-    {
-        // todo:
-    }
-*/
     ncLayer_SG_Metadata::ncLayer_SG_Metadata(int & i_ncID, geom_t geo, netCDFVID& ncdf, OGR_NCScribe& ncs) :
-        ncID(i_ncID),
         vDataset(ncdf),
         ncb(ncs),
         writableType(geo)
     {
     }
+
+	void ncLayer_SG_Metadata::setGridMappingAttribute(const std::string& name)
+	{
+		this->vDataset.nc_put_vatt_text(this->containerVarID, CF_GRD_MAPPING, name.c_str());
+	}
 
     OGRPoint& SGeometry_Feature::getPoint(size_t part_no, int point_index)
     {
@@ -956,123 +1013,5 @@ namespace nccfdriver
             VSIFCloseL(log);
             VSIUnlink(this->wlogName.c_str());
         }
-    }
-
-    // Helper function definitions
-    int write_Geometry_Container
-        (
-         int ncID, const std::string& name, geom_t geometry_type, 
-         const std::vector<std::string> & node_coordinate_names
-        )
-    {
-
-        int write_var_id;
-        int err_code;
-
-        // Define geometry container variable
-        err_code = nc_def_var(ncID, name.c_str(), NC_FLOAT, 0, nullptr, &write_var_id);
-        // todo: exception handling of err_code
-        NCDF_ERR(err_code);
-        if(err_code != NC_NOERR)
-        {
-            throw SGWriter_Exception_NCDefFailure(name.c_str(), "geometry_container", "variable");
-        }
-
-        /* Geometry Type Attribute
-         * -
-         */
-
-        // Next, go on to add attributes needed for each geometry type
-        std::string geometry_str =
-            (geometry_type == POINT || geometry_type == MULTIPOINT) ? CF_SG_TYPE_POINT :
-            (geometry_type == LINE || geometry_type == MULTILINE) ? CF_SG_TYPE_LINE :
-            (geometry_type == POLYGON || geometry_type == MULTIPOLYGON) ? CF_SG_TYPE_POLY :
-            ""; // obviously an error condition...
-
-        if(geometry_str == "")
-        {
-            throw SG_Exception_BadFeature();
-        }
-
-        // Add the geometry type attribute
-        err_code = nc_put_att_text(ncID, write_var_id, CF_SG_GEOMETRY_TYPE, geometry_str.size(), geometry_str.c_str());
-        NCDF_ERR(err_code);
-        if(err_code != NC_NOERR)
-        {
-            throw SGWriter_Exception_NCWriteFailure(name.c_str(), CF_SG_GEOMETRY_TYPE, "attribute in geometry_container");
-        }
-
-        /* Node Coordinates Attribute
-         * -
-         */
-        std::string ncoords_atr_str = "";
-
-        for(size_t itr = 0; itr < node_coordinate_names.size(); itr++)
-        {
-            ncoords_atr_str += node_coordinate_names[itr];
-            if (itr < node_coordinate_names.size() - 1)
-            {
-                ncoords_atr_str += " ";
-            }
-        }
-
-        err_code = nc_put_att_text(ncID, write_var_id, CF_SG_NODE_COORDINATES, ncoords_atr_str.size(), ncoords_atr_str.c_str());
-
-        NCDF_ERR(err_code);
-        if(err_code != NC_NOERR)
-        {
-            throw SGWriter_Exception_NCWriteFailure(name.c_str(), CF_SG_NODE_COORDINATES, "attribute in geometry_container");
-        }
-        // The previous two attributes are all that are required from POINT
-
-
-        /* Node_Count Attribute
-         * (not needed for POINT)
-         */
-        if (geometry_type != POINT)
-        {
-            std::string nodecount_atr_str = name + "_node_count";
-
-            err_code = nc_put_att_text(ncID, write_var_id, CF_SG_NODE_COUNT, nodecount_atr_str.size(), nodecount_atr_str.c_str());
-            NCDF_ERR(err_code);
-            if(err_code != NC_NOERR)
-            {
-                throw SGWriter_Exception_NCWriteFailure(name.c_str(), CF_SG_NODE_COUNT, "attribute in geometry_container");
-            }
-        }
-
-        /* Part_Node_Count Attribute
-         * (only needed for MULTILINE, MULTIPOLYGON, and (potentially) POLYGON)
-         */
-        if (geometry_type == MULTILINE || geometry_type == MULTIPOLYGON || geometry_type == POLYGON)
-        {
-            std::string pnc_atr_str = name + "_part_node_count";
-
-            err_code = nc_put_att_text(ncID, write_var_id, CF_SG_PART_NODE_COUNT, pnc_atr_str.size(), pnc_atr_str.c_str());
-
-            NCDF_ERR(err_code);
-            if(err_code != NC_NOERR)
-            {
-                throw SGWriter_Exception_NCWriteFailure(name.c_str(), CF_SG_PART_NODE_COUNT, "attribute in geometry_container");
-            }
-        }
-
-        /* Interior Ring Attribute
-         * (only needed potentially for MULTIPOLYGON and POLYGON)
-         */
-
-        if (geometry_type == MULTIPOLYGON || geometry_type == POLYGON)
-        {
-            std::string ir_atr_str = name + "_interior_ring";
-
-            err_code = nc_put_att_text(ncID, write_var_id, CF_SG_INTERIOR_RING, ir_atr_str.size(), ir_atr_str.c_str());
-            NCDF_ERR(err_code);
-            if(err_code != NC_NOERR)
-            {
-                throw nccfdriver::SGWriter_Exception_NCWriteFailure(name.c_str(), CF_SG_INTERIOR_RING, "attribute in geometry_container");
-            }
-         }
-
-        return write_var_id;
     }
 }

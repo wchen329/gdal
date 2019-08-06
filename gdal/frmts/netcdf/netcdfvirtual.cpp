@@ -261,6 +261,31 @@ namespace nccfdriver
         }
     }
 
+	void netCDFVID::nc_del_vatt(int varid, const char* name)
+	{
+		// Check for invalidation (again, don't care case)
+		if (this->virtualVIDToVar(varid).getRealID() == INVALID_VAR_ID)
+		{
+			return;
+		}
+
+		netCDFVVariable& v = this->virtualVIDToVar(varid);
+		std::vector<std::shared_ptr<netCDFVAttribute>>& aptrs = v.getAttributes();
+		
+		// Check for empties
+		if (aptrs.empty())
+			return;
+
+		for (std::vector<std::shared_ptr<netCDFVAttribute>>::iterator itr = aptrs.begin(); itr != aptrs.end(); ++itr)
+		{
+			std::string name_s = std::string(name);
+			if ((*itr)->getName() == name_s)
+			{
+				aptrs.erase(itr);
+			}
+		}
+	}
+
     /* Single Datum Writing
      * (mostly just convenience functions)
      */

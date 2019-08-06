@@ -581,10 +581,10 @@ bool netCDFLayer::Create(char **papszOptions,
                 throw nccfdriver::SG_Exception_BadFeature();
             }
 
-            int writableSGContVarID = nccfdriver::write_Geometry_Container(m_poDS->cdfid,
-                                                                           this->GetName(),
-                                                                           m_layerSGDefn.getWritableType(), coordNames);
-            m_layerSGDefn.initializeNewContainer(writableSGContVarID);
+            m_layerSGDefn.write_Geometry_Container(m_poDS->cdfid,
+                                                   this->GetName(),
+                                                   m_layerSGDefn.getWritableType(), coordNames);
+            m_layerSGDefn.initializeNewContainer();
 
             if(newbufsize >= 4096)
             {
@@ -606,14 +606,8 @@ bool netCDFLayer::Create(char **papszOptions,
             // Write the grid mapping, if it exists:
             if (poSRS != nullptr)
             {
-                status = nc_put_att_text(m_nLayerCDFId, m_layerSGDefn.get_containerRealID(), CF_GRD_MAPPING, strlen(m_sgCRSname.c_str()), m_sgCRSname.c_str());
-
-                if(status != NC_NOERR)
-                {
-                    throw nccfdriver::SGWriter_Exception_NCWriteFailure(m_layerSGDefn.get_containerName(), CF_GRD_MAPPING, "attribute"); 
-                }
-
-                std::vector<int>& ncv = m_layerSGDefn.get_nodeCoordVarIDs();
+				m_layerSGDefn.setGridMappingAttribute(m_sgCRSname);
+                const std::vector<int>& ncv = m_layerSGDefn.get_nodeCoordVarIDs();
                 int xVar = ncv[0];
                 int yVar = ncv[1];
 
@@ -1405,12 +1399,19 @@ OGRErr netCDFLayer::ICreateFeature(OGRFeature *poFeature)
     if( !m_bLegacyCreateMode )
     {
         // Detects: append mode
-        if(m_layerSGDefn.get_containerRealID() == nccfdriver::INVALID_VAR_ID)
+        if(m_layerSGDefn.get_containerID() == nccfdriver::INVALID_VAR_ID)
         {
             CPLError(CE_Failure, CPLE_NotSupported, "Append mode is not supported for CF-1.8 datasets.");
             return OGRERR_UNSUPPORTED_OPERATION;
         }
     }
+
+	// Increase feature count for CF-1.8 datasets. Used only to determine empty layers
+	// (which are not allowed)
+	if (!m_bLegacyCreateMode)
+	{
+		this->m_layerSGDefn.incFeatureCount();
+	}
 
     if( m_nProfileDimID >= 0 )
     {

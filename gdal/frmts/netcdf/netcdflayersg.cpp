@@ -226,15 +226,18 @@ void netCDFDataset::SGCommitPendingTransaction()
                 nccfdriver::ncLayer_SG_Metadata& layerMD = papoLayers[layerInd]->getLayerSGMetadata();
                 nccfdriver::geom_t wType = layerMD.getWritableType();
 
-                // Delete empty layer(s) if they exist
-                
+                /* Delete empty layer(s) if they exist */
+				if (layerMD.getWrittenFeatureCount() == 0)
+				{
+					vcdf.nc_del_vvar(layerMD.get_containerID());
+				}
 
                 // Resize node coordinates
                 int ncoord_did = layerMD.get_node_coord_dimID();
                 if(ncoord_did != nccfdriver::INVALID_DIM_ID)
                 {
                     if(layerMD.get_next_write_pos_node_coord() == 0)
-                        nc_del_vdim(ncoord_did);  // don't allow empties
+                        vcdf.nc_del_vdim(ncoord_did);  // don't allow empties
                     vcdf.nc_resize_vdim(ncoord_did, layerMD.get_next_write_pos_node_coord());
                 }
 
@@ -245,7 +248,7 @@ void netCDFDataset::SGCommitPendingTransaction()
                     if(ncount_did != nccfdriver::INVALID_DIM_ID)
                     {
                         if(layerMD.get_next_write_pos_node_count() == 0)
-                            nc_del_vdim(ncount_did);  // don't allow empties
+                            vcdf.nc_del_vdim(ncount_did);  // don't allow empties
                         vcdf.nc_resize_vdim(ncount_did, layerMD.get_next_write_pos_node_count());
                     }
                 }
@@ -257,7 +260,7 @@ void netCDFDataset::SGCommitPendingTransaction()
                     if(pnc_did != nccfdriver::INVALID_DIM_ID)
                     {
                         if(layerMD.get_next_write_pos_pnc() == 0)
-                            nc_del_vdim(pnc_did);  // don't allow empties
+                            vcdf.nc_del_vdim(pnc_did);  // don't allow empties
                         vcdf.nc_resize_vdim(pnc_did, layerMD.get_next_write_pos_pnc());
                     }
                 }
@@ -268,30 +271,16 @@ void netCDFDataset::SGCommitPendingTransaction()
                 */
 
                 if (!layerMD.getInteriorRingDetected() && (geometry_type == nccfdriver::MULTIPOLYGON || geometry_type == nccfdriver::POLYGON) &&
-                    layerMD.get_containerRealID() != nccfdriver::INVALID_VAR_ID)
+                    layerMD.get_containerID() != nccfdriver::INVALID_VAR_ID)
                 {
-                    SetDefineMode(true);
-
-                    int err_code = nc_del_att(cdfid, layerMD.get_containerRealID(), CF_SG_INTERIOR_RING);
-                    NCDF_ERR(err_code);
-                    if(err_code != NC_NOERR)
-                    {
-                        std::string frmt = std::string("attribute: ") + std::string(CF_SG_INTERIOR_RING);
-                        throw nccfdriver::SGWriter_Exception_NCDelFailure(layerMD.get_containerName().c_str(), frmt.c_str()); 
-                    }
+                    vcdf.nc_del_vatt(layerMD.get_containerID(), CF_SG_INTERIOR_RING);
 
                     // Invalidate variable writes as well - Interior Ring
                     vcdf.nc_del_vvar(layerMD.get_intring_varID());
 
                     if(geometry_type == nccfdriver::POLYGON) 
                     {
-                        err_code = nc_del_att(cdfid, layerMD.get_containerRealID(), CF_SG_PART_NODE_COUNT);
-                        NCDF_ERR(err_code);
-                        if(err_code != NC_NOERR)
-                        {
-                            std::string frmt = std::string("attribute: ") + std::string(CF_SG_PART_NODE_COUNT); 
-                            throw nccfdriver::SGWriter_Exception_NCDelFailure(layerMD.get_containerName().c_str(), frmt.c_str());
-                        }
+                        vcdf.nc_del_vatt(layerMD.get_containerID(), CF_SG_PART_NODE_COUNT);
 
                         // Invalidate variable writes as well - Part Node Count
                         vcdf.nc_del_vvar(layerMD.get_pnc_varID());
@@ -299,8 +288,6 @@ void netCDFDataset::SGCommitPendingTransaction()
                         // Invalidate dimension as well - Part Node Count
                         vcdf.nc_del_vdim(layerMD.get_pnc_dimID());
                     }
-
-                    SetDefineMode(false);
                 }
             }
 
