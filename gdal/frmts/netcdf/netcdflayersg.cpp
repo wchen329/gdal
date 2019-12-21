@@ -31,82 +31,82 @@
 
 namespace nccfdriver
 {
-    OGRwkbGeometryType RawToOGR(geom_t type, int axis_count)
+    OGRwkbGeometryType RawToOGR(ncsg_types::geom_t type, int axis_count)
     {
         OGRwkbGeometryType ret = wkbNone;
 
         switch(type)
         {
-            case NONE:
+            case ncsg_types::NONE:
                 break;
-            case LINE:
+            case ncsg_types::LINE:
                 ret = axis_count == 2 ? wkbLineString :
                       axis_count == 3 ? wkbLineString25D: wkbNone;
                 break;
-            case MULTILINE:
+            case ncsg_types::MULTILINE:
                 ret = axis_count == 2 ? wkbMultiLineString :
                       axis_count == 3 ? wkbMultiLineString25D : wkbNone;
                 break;
-            case POLYGON:
+            case ncsg_types::POLYGON:
                 ret = axis_count == 2 ? wkbPolygon :
                       axis_count == 3 ? wkbPolygon25D : wkbNone;
                 break;
-            case MULTIPOLYGON:
+            case ncsg_types::MULTIPOLYGON:
                 ret = axis_count == 2 ? wkbMultiPolygon :
                       axis_count == 3 ? wkbMultiPolygon25D : wkbNone;
                 break;
-            case POINT:
+            case ncsg_types::POINT:
                 ret = axis_count == 2 ? wkbPoint :
                       axis_count == 3 ? wkbPoint25D: wkbNone;
                 break;
-            case MULTIPOINT:
+            case ncsg_types::MULTIPOINT:
                 ret = axis_count == 2 ? wkbMultiPoint :
                       axis_count == 3 ? wkbMultiPoint25D : wkbNone;
                 break;
-            case UNSUPPORTED:
+            case ncsg_types::UNSUPPORTED:
                 break;
         }
 
         return ret;
     }
 
-    geom_t OGRtoRaw(OGRwkbGeometryType type)
+    ncsg_types::geom_t OGRtoRaw(OGRwkbGeometryType type)
     {
-        geom_t ret = NONE;
+        ncsg_types::geom_t ret = ncsg_types::NONE;
         auto eFlatType = wkbFlatten(type);
 
         if (eFlatType == wkbPoint)
         {
-            ret = POINT;
+            ret = ncsg_types::POINT;
         }
 
         else if (eFlatType == wkbLineString)
         {
-            ret = LINE;
+            ret = ncsg_types::LINE;
         }
 
         else if(eFlatType == wkbPolygon)
         {
-            ret = POLYGON;
+            ret = ncsg_types::POLYGON;
         }
 
         else if (eFlatType == wkbMultiPoint)
         {
-            ret = MULTIPOINT;
+            ret = ncsg_types::MULTIPOINT;
         }
 
         else if (eFlatType == wkbMultiLineString)
         {
-            ret = MULTILINE;
+            ret = ncsg_types::MULTILINE;
         }
 
         else if (eFlatType == wkbMultiPolygon)
         {
-            ret = MULTIPOLYGON;
+            ret = ncsg_types::MULTIPOLYGON;
         }
 
         // if the feature type isn't NONE potentially give a warning about measures
-        if(ret != NONE && wkbHasM(type))
+        if(ret != ncsg_types::NONE && wkbHasM(type))
         {
             CPLError(CE_Warning, CPLE_NotSupported, "A partially supported measured feature type was detected. X, Y, Z Geometry will be preserved but the measure axis and related information will be removed.");
         }
@@ -217,50 +217,54 @@ CPLErr netCDFDataset::LoadSGVarIntoLayer(int ncid, int nc_basevarId)
  */
 void netCDFDataset::SGCommitPendingTransaction()
 {
+
     try
     {
         if(bSGSupport)
         {
+            // For brevity (and since anything in this specific scope is only for simple geometry anyway...)
+            using namespace nccfdriver;
+
             // Go through all the layers and resize dimensions accordingly
             for(size_t layerInd = 0; layerInd < papoLayers.size(); layerInd++)
             {
-                nccfdriver::ncLayer_SG_Metadata& layerMD = papoLayers[layerInd]->getLayerSGMetadata();
-                nccfdriver::geom_t wType = layerMD.getWritableType();
+                ncLayer_SG_Metadata& layerMD = papoLayers[layerInd]->getLayerSGMetadata();
+                ncsg_types::geom_t wType = layerMD.getWritableType();
 
                 // Resize node coordinates
                 int ncoord_did = layerMD.get_node_coord_dimID();
-                if(ncoord_did != nccfdriver::INVALID_DIM_ID)
+                if(ncoord_did != INVALID_DIM_ID)
                 {
                     vcdf.nc_resize_vdim(ncoord_did, layerMD.get_next_write_pos_node_coord());
                 }
 
                 // Resize node count (for all except POINT)
-                if(wType != nccfdriver::POINT)
+                if(wType != ncsg_types::POINT)
                 {
                     int ncount_did = layerMD.get_node_count_dimID();
-                    if(ncount_did != nccfdriver::INVALID_DIM_ID)
+                    if(ncount_did != INVALID_DIM_ID)
                     {
                         vcdf.nc_resize_vdim(ncount_did, layerMD.get_next_write_pos_node_count());
                     }
                 }
 
                 // Resize part node count (for MULTILINE, POLYGON, MULTIPOLYGON)
-                if(wType == nccfdriver::MULTILINE || wType == nccfdriver::POLYGON || wType == nccfdriver::MULTIPOLYGON)
+                if(wType == ncsg_types::MULTILINE || wType == ncsg_types::POLYGON || wType == ncsg_types::MULTIPOLYGON)
                 {
                     int pnc_did = layerMD.get_pnc_dimID();
-                    if(pnc_did != nccfdriver::INVALID_DIM_ID)
+                    if(pnc_did != INVALID_DIM_ID)
                     {
                         vcdf.nc_resize_vdim(pnc_did, layerMD.get_next_write_pos_pnc());
                     }
                 }
 
-                 nccfdriver::geom_t geometry_type = layerMD.getWritableType();
+                ncsg_types::geom_t geometry_type = layerMD.getWritableType();
 
                /* Delete interior ring stuff if not detected
                 */
 
-                if (!layerMD.getInteriorRingDetected() && (geometry_type == nccfdriver::MULTIPOLYGON || geometry_type == nccfdriver::POLYGON) &&
-                    layerMD.get_containerRealID() != nccfdriver::INVALID_VAR_ID)
+                if (!layerMD.getInteriorRingDetected() && (geometry_type == ncsg_types::MULTIPOLYGON || geometry_type == ncsg_types::POLYGON) &&
+                    layerMD.get_containerRealID() != INVALID_VAR_ID)
                 {
                     SetDefineMode(true);
 
@@ -269,13 +273,13 @@ void netCDFDataset::SGCommitPendingTransaction()
                     if(err_code != NC_NOERR)
                     {
                         std::string frmt = std::string("attribute: ") + std::string(CF_SG_INTERIOR_RING);
-                        throw nccfdriver::SGWriter_Exception_NCDelFailure(layerMD.get_containerName().c_str(), frmt.c_str()); 
+                        throw SGWriter_Exception_NCDelFailure(layerMD.get_containerName().c_str(), frmt.c_str()); 
                     }
 
                     // Invalidate variable writes as well - Interior Ring
                     vcdf.nc_del_vvar(layerMD.get_intring_varID());
 
-                    if(geometry_type == nccfdriver::POLYGON) 
+                    if(geometry_type == ncsg_types::POLYGON) 
                     {
                         err_code = nc_del_att(cdfid, layerMD.get_containerRealID(), CF_SG_PART_NODE_COUNT);
                         NCDF_ERR(err_code);
@@ -304,7 +308,7 @@ void netCDFDataset::SGCommitPendingTransaction()
 
     catch(nccfdriver::SG_Exception& sge)
     {
-        CPLError(CE_Fatal, CPLE_FileIO, "An error occurred while writing the target netCDF File. Translation will be terminated.\n%s", sge.get_err_msg());
+        CPLError(CE_Fatal, CPLE_FileIO, "A fatal error occurred while writing the target netCDF File. Translation will be terminated.\n%s", sge.get_err_msg());
     }
 }
 
@@ -321,24 +325,25 @@ OGRFeature* netCDFLayer::buildSGeometryFeature(size_t featureInd)
 {
     OGRGeometry * geometry;
 
+    using namespace nccfdriver;
     switch(m_simpleGeometryReader->getGeometryType())
     {
-        case nccfdriver::POINT:
+        case ncsg_types::POINT:
             geometry = new OGRPoint;
             break;
-        case nccfdriver::LINE:
+        case ncsg_types::LINE:
             geometry = new OGRLineString;
             break;
-        case nccfdriver::POLYGON:
+        case ncsg_types::POLYGON:
             geometry = new OGRPolygon;
             break;
-        case nccfdriver::MULTIPOINT:
+        case ncsg_types::MULTIPOINT:
             geometry = new OGRMultiPoint;
             break;
-        case nccfdriver::MULTILINE:
+        case ncsg_types::MULTILINE:
             geometry = new OGRMultiLineString;
             break;
-        case nccfdriver::MULTIPOLYGON:
+        case ncsg_types::MULTIPOLYGON:
             geometry = new OGRMultiPolygon;
             break;
         default:

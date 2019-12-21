@@ -97,7 +97,7 @@ namespace nccfdriver
         // Find geometry type
         this->type = nccfdriver::getGeometryType(ncId, geoVarId); 
 
-        if(this->type == NONE)
+        if(this->type == ncsg_types::NONE)
         {
             throw SG_Exception_Existential(static_cast<const char*>(container_name), CF_SG_GEOMETRY_TYPE);
         }
@@ -218,7 +218,7 @@ namespace nccfdriver
         }
 
         // lines and polygons require node_counts, multipolygons are checked with part_node_count
-        if(this->type == POLYGON || this->type == LINE)
+        if(this->type == ncsg_types::POLYGON || this->type == ncsg_types::LINE)
         {
             if(node_counts.size() < 1)
             {
@@ -474,7 +474,7 @@ namespace nccfdriver
 
     size_t SGeometry_Reader::get_geometry_count() const
     {
-        if(type == POINT)
+        if(type == ncsg_types::POINT)
         {
             if(this->nodec_varIds.size() < 1) return 0;
 
@@ -513,7 +513,7 @@ namespace nccfdriver
         int nc = 0; size_t sb = 0;
 
         // Points don't have node_count entry... only inspect and set node_counts if not a point
-        if(this->getGeometryType() != POINT)
+        if(this->getGeometryType() != ncsg_types::POINT)
         {
             nc = node_counts[featureInd];
             sb = bound_list[featureInd];
@@ -523,19 +523,19 @@ namespace nccfdriver
         // The memory requirements also differ between geometries
         switch(this->getGeometryType())
         {
-            case POINT:
+            case ncsg_types::POINT:
                 wkbSize = 1 + 4 + this->touple_order * 8;
                 ret = new uint8_t[wkbSize];
                 inPlaceSerialize_Point(this, featureInd, ret);
                 break;
 
-            case LINE:
+            case ncsg_types::LINE:
                 wkbSize = 1 + 4 + 4 + this->touple_order * 8 * nc;
                 ret = new uint8_t[wkbSize];
                 inPlaceSerialize_LineString(this, nc, sb, ret);
                 break;
 
-            case POLYGON:
+            case ncsg_types::POLYGON:
                 // A polygon has:
                 // 1 byte header
                 // 4 byte Type
@@ -551,7 +551,7 @@ namespace nccfdriver
                 inPlaceSerialize_PolygonExtOnly(this, nc, sb, ret);
                 break;
 
-            case MULTIPOINT:
+            case ncsg_types::MULTIPOINT:
                 {
                     wkbSize = 1 + 4 + 4 + nc * (1 + 4 + this->touple_order * 8);
                     ret = new uint8_t[wkbSize];
@@ -577,7 +577,7 @@ namespace nccfdriver
 
                 break;
 
-            case MULTILINE:
+            case ncsg_types::MULTILINE:
                 {
                     int8_t header = PLATFORM_HEADER;
                     uint32_t t = this->touple_order == 2 ? wkbMultiLineString :
@@ -620,7 +620,7 @@ namespace nccfdriver
 
                 break;
 
-            case MULTIPOLYGON:
+            case ncsg_types::MULTIPOLYGON:
                 {
                     int8_t header = PLATFORM_HEADER;
                     uint32_t t = this->touple_order == 2 ? wkbMultiPolygon:
@@ -898,15 +898,15 @@ namespace nccfdriver
         return ver;
     }
 
-    geom_t getGeometryType(int ncid, int varid)
+    ncsg_types::geom_t getGeometryType(int ncid, int varid)
     {
-        geom_t ret = UNSUPPORTED;
+        ncsg_types::geom_t ret = ncsg_types::UNSUPPORTED;
         std::string gt_name_s;
         const char * gt_name= attrf(ncid, varid, CF_SG_GEOMETRY_TYPE, gt_name_s).c_str();
 
         if(gt_name == nullptr)
         {
-            return NONE;
+            return ncsg_types::NONE;
         }
         
         // Points    
@@ -915,9 +915,9 @@ namespace nccfdriver
             // Node Count not present? Assume that it is a multipoint.
             if(nc_inq_att(ncid, varid, CF_SG_NODE_COUNT, nullptr, nullptr) == NC_ENOTATT)
             {
-                ret = POINT;    
+                ret = ncsg_types::POINT;    
             }
-            else ret = MULTIPOINT;
+            else ret = ncsg_types::MULTIPOINT;
         }
 
         // Lines
@@ -926,9 +926,9 @@ namespace nccfdriver
             // Part Node Count present? Assume multiline
             if(nc_inq_att(ncid, varid, CF_SG_PART_NODE_COUNT, nullptr, nullptr) == NC_ENOTATT)
             {
-                ret = LINE;
+                ret = ncsg_types::LINE;
             }
-            else ret = MULTILINE;
+            else ret = ncsg_types::MULTILINE;
         }
 
         // Polygons
@@ -944,9 +944,9 @@ namespace nccfdriver
 
             if(pnc_present == NC_ENOTATT && ir_present == NC_ENOTATT)
             {
-                ret = POLYGON;
+                ret = ncsg_types::POLYGON;
             }
-            else ret = MULTIPOLYGON;
+            else ret = ncsg_types::MULTIPOLYGON;
         }
 
         return ret;

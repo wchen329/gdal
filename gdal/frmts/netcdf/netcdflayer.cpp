@@ -566,7 +566,7 @@ bool netCDFLayer::Create(char **papszOptions,
                 coordNames.push_back(strZVarName);
             }
 
-            if(m_layerSGDefn.getWritableType() == nccfdriver::NONE)
+            if(m_layerSGDefn.getWritableType() == nccfdriver::ncsg_types::NONE)
             {
                 throw nccfdriver::SG_Exception_BadFeature();
             }
@@ -580,7 +580,7 @@ bool netCDFLayer::Create(char **papszOptions,
             }
 
             // Set record dim ID; POINT it's the node coordinate dim ID and everything else it's node count:
-            if(m_layerSGDefn.getWritableType() == nccfdriver::POINT)
+            if(m_layerSGDefn.getWritableType() == nccfdriver::ncsg_types::POINT)
             {
                 m_nRecordDimID = m_layerSGDefn.get_node_coord_dimID();
                 m_osRecordDimName =  std::string(this->GetName()) + std::string("_") + std::string(CF_SG_NODE_COORDINATES);

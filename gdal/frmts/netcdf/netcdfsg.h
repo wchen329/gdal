@@ -44,18 +44,21 @@ namespace nccfdriver
     const int INVALID_VAR_ID = -2;    
     const int INVALID_DIM_ID = INVALID_VAR_ID;
 
-    // Enum used for easily identifying Geometry types
-    enum geom_t
+    namespace ncsg_types
     {
-        NONE,        // no geometry found
-        POLYGON,    // OGRPolygon
-        MULTIPOLYGON,    // OGRMultipolygon
-        LINE,        // OGRLineString
-        MULTILINE,    // OGRMultiLineString
-        POINT,        // OGRPoint
-        MULTIPOINT,    // OGRMultiPoint
-        UNSUPPORTED    // Unsupported feature type    
-    };    
+        // Enum used for easily identifying Geometry types
+        enum geom_t
+        {
+            NONE,        // no geometry found
+            POLYGON,    // OGRPolygon
+            MULTIPOLYGON,    // OGRMultipolygon
+            LINE,        // OGRLineString
+            MULTILINE,    // OGRMultiLineString
+            POINT,        // OGRPoint
+            MULTIPOINT,    // OGRMultiPoint
+            UNSUPPORTED    // Unsupported feature type    
+        };    
+    }
 
     // Concrete "Point" class, holds n dimensional double precision floating point value, defaults to all zero values
     class Point
@@ -78,7 +81,7 @@ namespace nccfdriver
     class SGeometry_Reader
     {
         std::string container_name_s;        // name of the underlying geometry container
-        geom_t type;         // internal geometry type structure
+        ncsg_types::geom_t type;         // internal geometry type structure
         int ncid;        // ncid - as used in netcdf.h
         int gc_varId;        // the id of the underlying geometry_container variable
         std::string gm_name_s; // grid mapping variable name
@@ -133,7 +136,7 @@ namespace nccfdriver
         /* geom_t getGeometryType()
          * Retrieves the associated geometry type with this geometry
          */
-        geom_t getGeometryType() const { return this->type; }
+        ncsg_types::geom_t getGeometryType() const { return this->type; }
 
         /* void SGeometry_Reader::get_geometry_count()
          * returns a size, indicating the amount of geometries
@@ -338,7 +341,7 @@ namespace nccfdriver
     /* Given a geometry_container varID, searches that variable for a geometry_type attribute
      * Returns: the equivalent geometry type
      */
-    geom_t getGeometryType(int ncid, int varid); 
+    ncsg_types::geom_t getGeometryType(int ncid, int varid); 
     
     void* inPlaceSerialize_Point(const SGeometry_Reader * ge, size_t seek_pos, void * serializeBegin);
     void* inPlaceSerialize_LineString(const SGeometry_Reader * ge, int node_count, size_t seek_begin, void * serializeBegin);

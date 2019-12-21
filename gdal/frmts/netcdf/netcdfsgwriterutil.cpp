@@ -45,7 +45,7 @@ namespace nccfdriver
         OGRwkbGeometryType ogwkt = defnGeometry->getGeometryType();
         this->type = OGRtoRaw(ogwkt);
 
-        if (this->type == POINT)
+        if (this->type == ncsg_types::POINT)
         {
             // Set total node count (1)
             this->total_point_count = 1;
@@ -57,7 +57,7 @@ namespace nccfdriver
             ppart_node_count.push_back(1);
         }
 
-        else if (this->type == MULTIPOINT)
+        else if (this->type == ncsg_types::MULTIPOINT)
         {
             OGRMultiPoint& r_defnGeometryMP = dynamic_cast<OGRMultiPoint&>(r_defnGeometry);
 
@@ -75,7 +75,7 @@ namespace nccfdriver
 
         }
 
-        else if (this->type == LINE)
+        else if (this->type == ncsg_types::LINE)
         {
             OGRLineString& r_defnGeometryLine = dynamic_cast<OGRLineString&>(r_defnGeometry);
             // to do: check for std::bad_cast somewhere?
@@ -90,7 +90,7 @@ namespace nccfdriver
             this->total_part_count = 1;
         }
 
-        else if(this->type == MULTILINE)
+        else if(this->type == ncsg_types::MULTILINE)
         {
             OGRMultiLineString& r_defnMLS = dynamic_cast<OGRMultiLineString&>(r_defnGeometry);
             this->total_point_count = 0;
@@ -108,7 +108,7 @@ namespace nccfdriver
             }
         }
 
-        else if(this->type == POLYGON)
+        else if(this->type == ncsg_types::POLYGON)
         {
             OGRPolygon& r_defnPolygon = dynamic_cast<OGRPolygon&>(r_defnGeometry);
 
@@ -151,7 +151,7 @@ namespace nccfdriver
             }
         }
 
-        else if(this->type == MULTIPOLYGON)
+        else if(this->type == ncsg_types::MULTIPOLYGON)
         {
             OGRMultiPolygon& r_defnMPolygon = dynamic_cast<OGRMultiPolygon&>(r_defnGeometry);
 
@@ -228,7 +228,7 @@ namespace nccfdriver
         this->containerVar_realID = containerVID;
 
         netCDFVID& ncdf = this->vDataset;
-        geom_t geo = this->writableType;
+        ncsg_types::geom_t geo = this->writableType;
 
          // Define some virtual dimensions, and some virtual variables
         char container_name[NC_MAX_CHAR + 1] = {0};
@@ -263,7 +263,7 @@ namespace nccfdriver
         }
 
         // Node Count
-        if(geo != POINT)
+        if(geo != ncsg_types::POINT)
         {
             std::string nodecount_name = containerVarName + "_" + std::string(CF_SG_NODE_COUNT);
             node_count_dimID = ncdf.nc_def_vdim(nodecount_name.c_str(), 1);
@@ -286,7 +286,7 @@ namespace nccfdriver
             // For interior ring too (for POLYGON and MULTIPOLYGON); there's always an assumption
             // that interior rings really do exist until the very end in which case it's known whether or not
             // that assumption was true or false (if false, this (and PNC attribute for Polygons) will just be deleted)
-            if(this->writableType == POLYGON || this->writableType == MULTIPOLYGON)
+            if(this->writableType == ncsg_types::POLYGON || this->writableType == ncsg_types::MULTIPOLYGON)
             {
                 intring_varID = ncdf.nc_def_vvar(ir_name, NC_INT, 1, &pnc_dimID);
             }
@@ -321,7 +321,7 @@ namespace nccfdriver
         }
     }
 
-    ncLayer_SG_Metadata::ncLayer_SG_Metadata(int & i_ncID, geom_t geo, netCDFVID& ncdf, OGR_NCScribe& ncs) :
+    ncLayer_SG_Metadata::ncLayer_SG_Metadata(int & i_ncID, ncsg_types::geom_t geo, netCDFVID& ncdf, OGR_NCScribe& ncs) :
         ncID(i_ncID),
         vDataset(ncdf),
         ncb(ncs),
@@ -331,7 +331,7 @@ namespace nccfdriver
 
     OGRPoint& SGeometry_Feature::getPoint(size_t part_no, int point_index)
     {
-        if (this->type == POINT)
+        if (this->type == ncsg_types::POINT)
         {
             // Point case: always return the single point regardless of any thing
 
@@ -340,7 +340,7 @@ namespace nccfdriver
             return  *as_p_ref;
         }
 
-        if (this->type == MULTIPOINT)
+        if (this->type == ncsg_types::MULTIPOINT)
         {
             OGRMultiPoint* as_mp_ref = dynamic_cast<OGRMultiPoint*>(this->geometry_ref);
             CPLAssert(as_mp_ref);
@@ -350,14 +350,14 @@ namespace nccfdriver
             return *pt;
         }
 
-        if (this->type == LINE)
+        if (this->type == ncsg_types::LINE)
         {
             OGRLineString* as_line_ref = dynamic_cast<OGRLineString*>(this->geometry_ref);
             CPLAssert(as_line_ref);
             as_line_ref->getPoint(point_index, &pt_buffer);
         }
 
-        if (this->type == MULTILINE)
+        if (this->type == ncsg_types::MULTILINE)
         {
             OGRMultiLineString* as_mline_ref = dynamic_cast<OGRMultiLineString*>(this->geometry_ref);
             CPLAssert(as_mline_ref);
@@ -367,7 +367,7 @@ namespace nccfdriver
             lstring->getPoint(point_index, &pt_buffer);
         }
 
-        if (this->type == POLYGON)
+        if (this->type == ncsg_types::POLYGON)
         {
             OGRPolygon* as_polygon_ref = dynamic_cast<OGRPolygon*>(this->geometry_ref);
             CPLAssert(as_polygon_ref);
@@ -384,7 +384,7 @@ namespace nccfdriver
             }
         }
 
-        if (this->type == MULTIPOLYGON)
+        if (this->type == ncsg_types::MULTIPOLYGON)
         {
             OGRMultiPolygon* as_mpolygon_ref = dynamic_cast<OGRMultiPolygon*>(this->geometry_ref);
             CPLAssert(as_mpolygon_ref);
@@ -430,7 +430,7 @@ namespace nccfdriver
 
     void ncLayer_SG_Metadata::writeSGeometryFeature(SGeometry_Feature& ft)
     {
-        if (ft.getType() == NONE)
+        if (ft.getType() == ncsg_types::NONE)
         {
             throw SG_Exception_BadFeature();
         }
@@ -438,16 +438,16 @@ namespace nccfdriver
         // Write each point from each part in node coordinates
         for(size_t part_no = 0; part_no < ft.getTotalPartCount(); part_no++)
         {
-            if(this->writableType == POLYGON || this->writableType == MULTIPOLYGON)
+            if(this->writableType == ncsg_types::POLYGON || this->writableType == ncsg_types::MULTIPOLYGON)
             {
                 int interior_ring_fl = 1;
 
-                if(this->writableType == POLYGON)
+                if(this->writableType == ncsg_types::POLYGON)
                 {
                     interior_ring_fl = part_no == 0 ? 0 : 1;
                 }
 
-                else if(this->writableType == MULTIPOLYGON)
+                else if(this->writableType == ncsg_types::MULTIPOLYGON)
                 {
                     if(ft.IsPartAtIndInteriorRing(part_no))
                     {
@@ -468,7 +468,7 @@ namespace nccfdriver
                 ncb.enqueue_transaction(MTPtr(new OGR_SGFS_NC_Int_Transaction(intring_varID, interior_ring_fl)));
             }
 
-            if(this->writableType == POLYGON || this->writableType == MULTILINE || this->writableType == MULTIPOLYGON)
+            if(this->writableType == ncsg_types::POLYGON || this->writableType == ncsg_types::MULTILINE || this->writableType == ncsg_types::MULTIPOLYGON)
             {
                 int pnc_writable = static_cast<int>(ft.getPerPartNodeCount()[part_no]);
                 ncb.enqueue_transaction(MTPtr(new OGR_SGFS_NC_Int_Transaction(pnc_varID, pnc_writable)));
@@ -498,7 +498,7 @@ namespace nccfdriver
         }
 
         // Append node counts from the end, if not a POINT
-        if(this->writableType != POINT)
+        if(this->writableType != ncsg_types::POINT)
         {
             int ncount_add = static_cast<int>(ft.getTotalNodeCount());
             ncb.enqueue_transaction(MTPtr(new OGR_SGFS_NC_Int_Transaction(node_count_varID, ncount_add)));
@@ -508,8 +508,8 @@ namespace nccfdriver
             // MultiPolygon part_node_counts are counted in terms of "rings" not parts contrary to the name
             // so an empty multipolygon with no rings will slip past the regular part_node_count placement
             // In essence this is probably taken as "if there are no rings" then "there are also no points"
-            if(ft.getTotalPartCount() == 0 && this->writableType == MULTIPOLYGON &&
-               (ft.getType() == POLYGON || ft.getType() == MULTIPOLYGON))
+            if(ft.getTotalPartCount() == 0 && this->writableType == ncsg_types::MULTIPOLYGON &&
+               (ft.getType() == ncsg_types::POLYGON || ft.getType() == ncsg_types::MULTIPOLYGON))
             {
                 ncb.enqueue_transaction(MTPtr(new OGR_SGFS_NC_Int_Transaction(pnc_varID, 0)));
                 this->next_write_pos_pnc++;
@@ -976,7 +976,7 @@ namespace nccfdriver
 
     // Helper function definitions
     int write_Geometry_Container
-        (int ncID, const std::string& name, geom_t geometry_type, const std::vector<std::string> & node_coordinate_names)
+        (int ncID, const std::string& name, ncsg_types::geom_t geometry_type, const std::vector<std::string> & node_coordinate_names)
     {
 
         int write_var_id;
@@ -997,9 +997,9 @@ namespace nccfdriver
 
         // Next, go on to add attributes needed for each geometry type
         std::string geometry_str =
-            (geometry_type == POINT || geometry_type == MULTIPOINT) ? CF_SG_TYPE_POINT :
-            (geometry_type == LINE || geometry_type == MULTILINE) ? CF_SG_TYPE_LINE :
-            (geometry_type == POLYGON || geometry_type == MULTIPOLYGON) ? CF_SG_TYPE_POLY :
+            (geometry_type == ncsg_types::POINT || geometry_type == ncsg_types::MULTIPOINT) ? CF_SG_TYPE_POINT :
+            (geometry_type == ncsg_types::LINE || geometry_type == ncsg_types::MULTILINE) ? CF_SG_TYPE_LINE :
+            (geometry_type == ncsg_types::POLYGON || geometry_type == ncsg_types::MULTIPOLYGON) ? CF_SG_TYPE_POLY :
             ""; // obviously an error condition...
 
         if(geometry_str == "")
@@ -1042,7 +1042,7 @@ namespace nccfdriver
         /* Node_Count Attribute
          * (not needed for POINT)
          */
-        if (geometry_type != POINT)
+        if (geometry_type != ncsg_types::POINT)
         {
             std::string nodecount_atr_str = name + "_node_count";
 
@@ -1057,7 +1057,7 @@ namespace nccfdriver
         /* Part_Node_Count Attribute
          * (only needed for MULTILINE, MULTIPOLYGON, and (potentially) POLYGON)
          */
-        if (geometry_type == MULTILINE || geometry_type == MULTIPOLYGON || geometry_type == POLYGON)
+        if (geometry_type == ncsg_types::MULTILINE || geometry_type == ncsg_types::MULTIPOLYGON || geometry_type == ncsg_types::POLYGON)
         {
             std::string pnc_atr_str = name + "_part_node_count";
 
@@ -1074,7 +1074,7 @@ namespace nccfdriver
          * (only needed potentially for MULTIPOLYGON and POLYGON)
          */
 
-        if (geometry_type == MULTIPOLYGON || geometry_type == POLYGON)
+        if (geometry_type == ncsg_types::MULTIPOLYGON || geometry_type == ncsg_types::POLYGON)
         {
             std::string ir_atr_str = name + "_interior_ring";
 

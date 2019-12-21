@@ -54,7 +54,7 @@ namespace nccfdriver
     {
         bool hasInteriorRing;
         OGRGeometry * geometry_ref;
-        geom_t type;
+        ncsg_types::geom_t type;
         size_t total_point_count;
         size_t total_part_count;
         std::vector<size_t> ppart_node_count;
@@ -62,7 +62,7 @@ namespace nccfdriver
         OGRPoint pt_buffer;
 
         public:
-            geom_t getType() { return this->type; }
+            ncsg_types::geom_t getType() { return this->type; }
             size_t getTotalNodeCount() { return this->total_point_count; }
             size_t getTotalPartCount() { return this->total_part_count;  }
             std::vector<size_t> & getPerPartNodeCount() { return this->ppart_node_count; }
@@ -394,7 +394,7 @@ namespace nccfdriver
 
         netCDFVID& vDataset;
         OGR_NCScribe & ncb;
-        geom_t writableType = NONE;
+        ncsg_types::geom_t writableType = ncsg_types::NONE;
         std::string containerVarName;
         int containerVar_realID = INVALID_VAR_ID;
         bool interiorRingDetected = false; // flips on when an interior ring polygon has been detected
@@ -410,7 +410,7 @@ namespace nccfdriver
         size_t next_write_pos_pnc = 0;
 
         public:
-            geom_t getWritableType() { return this->writableType; }
+            ncsg_types::geom_t getWritableType() { return this->writableType; }
             void writeSGeometryFeature(SGeometry_Feature& ft);
             int get_containerRealID() { return this->containerVar_realID; }
             std::string get_containerName() { return this->containerVarName; }
@@ -425,7 +425,7 @@ namespace nccfdriver
             size_t get_next_write_pos_pnc() { return this->next_write_pos_pnc; }
             bool getInteriorRingDetected() { return this->interiorRingDetected; }
             void initializeNewContainer(int containerVID);
-            ncLayer_SG_Metadata(int & i_ncID, geom_t geo, netCDFVID& ncdf, OGR_NCScribe& scribe);
+            ncLayer_SG_Metadata(int & i_ncID, ncsg_types::geom_t geo, netCDFVID& ncdf, OGR_NCScribe& scribe);
     };
 
     /* WBufferManager
@@ -527,7 +527,7 @@ namespace nccfdriver
      * Returns: geometry container variable ID
      */
     int write_Geometry_Container
-        (int ncID, const std::string& name, geom_t geometry_type, const std::vector<std::string> & node_coordinate_names);
+        (int ncID, const std::string& name, ncsg_types::geom_t geometry_type, const std::vector<std::string> & node_coordinate_names);
 
     template<class W_type> inline void NCWMapAllocIfNeeded(int varid, NCWMap& mapAdd, size_t numEntries, std::vector<int> & v)
     {
