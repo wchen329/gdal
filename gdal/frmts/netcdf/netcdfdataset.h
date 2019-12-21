@@ -1072,7 +1072,7 @@ class netCDFLayer final: public OGRLayer
         int             m_nProfileVarID;
         bool            m_bProfileVarUnlimited;
         int             m_nParentIndexVarID;
-        std::shared_ptr<nccfdriver::SGeometry_Reader>       m_simpleGeometryReader;
+        std::shared_ptr<const nccfdriver::SGeometry_Reader>       m_simpleGeometryReader;
         std::unique_ptr<nccfdriver::netCDFVID>              layerVID_alloc; // Allocation wrapper for group specifc netCDFVID
         nccfdriver::netCDFVID& layerVID; // refers to the "correct" VID
         std::string     m_sgCRSname;
