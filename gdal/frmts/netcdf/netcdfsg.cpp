@@ -450,7 +450,7 @@ namespace nccfdriver
         this->ncid = ncId;
     }
 
-    Point& SGeometry_Reader::operator[](size_t index)
+    Point& SGeometry_Reader::operator[](size_t index) const
     {
         for(int order = 0; order < touple_order; order++)
         {
@@ -472,7 +472,7 @@ namespace nccfdriver
         return *(this->pt_buffer);
     }
 
-    size_t SGeometry_Reader::get_geometry_count()
+    size_t SGeometry_Reader::get_geometry_count() const
     {
         if(type == POINT)
         {
@@ -507,7 +507,7 @@ namespace nccfdriver
      * Converting SGeometry into WKB automatically allocates the required buffer space
      * and returns a buffer that MUST be free'd
      */
-    unsigned char * SGeometry_Reader::serializeToWKB(size_t featureInd, int& wkbSize)
+    unsigned char * SGeometry_Reader::serializeToWKB(size_t featureInd, int& wkbSize) const
     {        
         unsigned char * ret = nullptr;
         int nc = 0; size_t sb = 0;
@@ -952,7 +952,7 @@ namespace nccfdriver
         return ret;
     }
 
-    void* inPlaceSerialize_Point(SGeometry_Reader * ge, size_t seek_pos, void * serializeBegin)
+    void* inPlaceSerialize_Point(const SGeometry_Reader * ge, size_t seek_pos, void * serializeBegin)
     {
         uint8_t order = 1;
         uint32_t t = ge->get_axisCount() == 2 ? wkbPoint:
@@ -979,7 +979,7 @@ namespace nccfdriver
         return serializeBegin;
     }
 
-    void* inPlaceSerialize_LineString(SGeometry_Reader * ge, int node_count, size_t seek_begin, void * serializeBegin)
+    void* inPlaceSerialize_LineString(const SGeometry_Reader * ge, int node_count, size_t seek_begin, void * serializeBegin)
     {
         uint8_t order = PLATFORM_HEADER;
         uint32_t t = ge->get_axisCount() == 2 ? wkbLineString:
@@ -1011,7 +1011,7 @@ namespace nccfdriver
         return serializeBegin;
     }
 
-    void* inPlaceSerialize_PolygonExtOnly(SGeometry_Reader * ge, int node_count, size_t seek_begin, void * serializeBegin)
+    void* inPlaceSerialize_PolygonExtOnly(const SGeometry_Reader * ge, int node_count, size_t seek_begin, void * serializeBegin)
     {    
         int8_t header = PLATFORM_HEADER;
         uint32_t t = ge->get_axisCount() == 2 ? wkbPolygon:
@@ -1045,7 +1045,7 @@ namespace nccfdriver
         return writer;
     }
 
-    void* inPlaceSerialize_Polygon(SGeometry_Reader * ge, std::vector<int>& pnc, int ring_count, size_t seek_begin, void * serializeBegin)
+    void* inPlaceSerialize_Polygon(const SGeometry_Reader * ge, std::vector<int>& pnc, int ring_count, size_t seek_begin, void * serializeBegin)
     {
             
         int8_t header = PLATFORM_HEADER;
@@ -1121,5 +1121,6 @@ namespace nccfdriver
         }    
 
         return 0 ;
+
     }
 }

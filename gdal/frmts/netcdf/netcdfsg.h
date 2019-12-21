@@ -103,70 +103,68 @@ namespace nccfdriver
         /* int SGeometry_Reader::get_ncID()
          * return the group/file ID that the SGeometry object is operating over
          */
-        int get_ncID() { return ncid; }
+        int get_ncID() const { return ncid; }
 
         /* int SGeometry_Reader::get_axisCount()
          * Returns the count of axis (i.e. X, Y, Z)
          */
-        int get_axisCount() { return this->touple_order; }
+        int get_axisCount() const { return this->touple_order; }
 
         /* int SGeometry_Reader::getInstDim()
          * Returns the geometry instance dimension ID of this geometry
          */
-        int getInstDim() { return this->inst_dimId; }
+        int getInstDim() const { return this->inst_dimId; }
 
         /* size_t SGeometry_Reader::getInstDimLen()
          * Returns the length of the instance dimension
          */
-        size_t getInstDimLen() { return this->inst_dimLen; }
+        size_t getInstDimLen() const { return this->inst_dimLen; }
 
         /* std::string& getGridMappingName()
          * returns the variable name which holds grid mapping data
          */
-        std::string& getGridMappingName() { return this->gm_name_s; }
+        const std::string& getGridMappingName() const { return this->gm_name_s; }
 
         /* int SGeometry_Reader::getGridMappingVarID();
          * returns the varID of the associated grid mapping variable ID
          */    
-        int getGridMappingVarID() { return this->gm_varId; }
+        int getGridMappingVarID() const { return this->gm_varId; }
 
         /* geom_t getGeometryType()
          * Retrieves the associated geometry type with this geometry
          */
-        geom_t getGeometryType() { return this->type; }
+        geom_t getGeometryType() const { return this->type; }
 
         /* void SGeometry_Reader::get_geometry_count()
          * returns a size, indicating the amount of geometries
          * contained in the variable
          */
-        size_t get_geometry_count();
+        size_t get_geometry_count() const;
 
         /* const char* SGeometry_Reader::getContainerName()
          * Returns the container name as a string
          */
-        std::string& getContainerName() { return container_name_s; }
+        const std::string& getContainerName() const { return container_name_s; }
 
         /* int SGeometry_Reader::getContainerId()
          * Get the ncID of the geometry_container variable
          */
-        int getContainerId() { return gc_varId; }
+        int getContainerId() const { return gc_varId; }
 
         /* void unsigned char * serializeToWKB
          * Returns a pre-allocated array which serves as the WKB reference to this geometry
          * the size of the WKB representation is written to the passed in wkbSize
          */
-        unsigned char * serializeToWKB(size_t featureInd, int& wkbSize);
+        unsigned char * serializeToWKB(size_t featureInd, int& wkbSize) const;
 
         /* Return a point at a specific index specifically
-         * this point should NOT be explicitly freed.
-         *
          */
-        Point& operator[](size_t ind);
+        Point& operator[](size_t ind) const;
 
         /* std::vector<int>& getNodeCoordVars
          * Returns a vector with the node coord vars in X, Y, Z (if present) order
          */
-        std::vector<int>& getNodeCoordVars() { return this->nodec_varIds; }
+        const std::vector<int>& getNodeCoordVars() const { return this->nodec_varIds; }
 
         /* ncID - as used in netcdf.h
          * baseVarId - the id of a variable with a geometry container attribute 
@@ -342,10 +340,10 @@ namespace nccfdriver
      */
     geom_t getGeometryType(int ncid, int varid); 
     
-    void* inPlaceSerialize_Point(SGeometry_Reader * ge, size_t seek_pos, void * serializeBegin);
-    void* inPlaceSerialize_LineString(SGeometry_Reader * ge, int node_count, size_t seek_begin, void * serializeBegin);
-    void* inPlaceSerialize_PolygonExtOnly(SGeometry_Reader * ge, int node_count, size_t seek_begin, void * serializeBegin);
-    void* inPlaceSerialize_Polygon(SGeometry_Reader * ge, std::vector<int>& pnc, int ring_count, size_t seek_begin, void * serializeBegin);
+    void* inPlaceSerialize_Point(const SGeometry_Reader * ge, size_t seek_pos, void * serializeBegin);
+    void* inPlaceSerialize_LineString(const SGeometry_Reader * ge, int node_count, size_t seek_begin, void * serializeBegin);
+    void* inPlaceSerialize_PolygonExtOnly(const SGeometry_Reader * ge, int node_count, size_t seek_begin, void * serializeBegin);
+    void* inPlaceSerialize_Polygon(const SGeometry_Reader * ge, std::vector<int>& pnc, int ring_count, size_t seek_begin, void * serializeBegin);
 
     /* scanForGeometryContainers
      * A simple function that scans a netCDF File for Geometry Containers
