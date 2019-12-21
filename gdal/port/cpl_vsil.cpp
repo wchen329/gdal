@@ -550,8 +550,13 @@ int VSIRename( const char * oldpath, const char * newpath )
  * the timestamps of the files (or optionally the ETag/MD5Sum) to avoid
  * unneeded copy operations.
  *
- * Note: currently only implemented efficiently for local filesystem <-->
- * remote filesystem.
+ * This is only implemented efficiently for:
+ * <ul>
+ * <li> local filesystem <--> remote filesystem.</li>
+ * <li> remote filesystem <--> remote filesystem (starting with GDAL 3.1).
+ * Where the source and target remote filesystems are the same and one of
+ * /vsis3/, /vsigs/ or /vsiaz/</li>
+ * </ul>
  *
  * Similarly to rsync behaviour, if the source filename ends with a slash,
  * it means that the content of the directory must be copied, but not the
@@ -780,7 +785,8 @@ int VSIStatExL( const char * pszFilename, VSIStatBufL *psStatBuf, int nFlags )
     char szAltPath[4] = { '\0' };
 
     // Enable to work on "C:" as if it were "C:\".
-    if( strlen(pszFilename) == 2 && pszFilename[1] == ':' )
+    if( pszFilename[0] != '\0' && pszFilename[1] == ':' &&
+        pszFilename[2] == '\0' )
     {
         szAltPath[0] = pszFilename[0];
         szAltPath[1] = pszFilename[1];
@@ -1091,6 +1097,7 @@ bool VSIFilesystemHandler::Sync( const char* pszSource, const char* pszTarget,
                     CPLFormFilename(osSourceWithoutSlash, *iter, nullptr) );
                 CPLString osSubTarget(
                     CPLFormFilename(osTargetDir, *iter, nullptr) );
+                // coverity[divide_by_zero]
                 void* pScaledProgress = GDALCreateScaledProgress(
                     double(iFile) / nFileCount, double(iFile + 1) / nFileCount,
                     pProgressFunc, pProgressData);
@@ -2207,6 +2214,63 @@ int VSIIngestFile( VSILFILE* fp,
     if( bFreeFP )
         CPL_IGNORE_RET_VAL(VSIFCloseL( fp ));
     return TRUE;
+}
+
+
+/************************************************************************/
+/*                         VSIOverwriteFile()                           */
+/************************************************************************/
+
+/**
+ * \brief Overwrite an existing file with content from another one
+ *
+ * @param fpTarget file handle opened with VSIFOpenL() with "rb+" flag.
+ * @param pszSourceFilename source filename
+ *
+ * @return TRUE in case of success.
+ *
+ * @since GDAL 3.1
+ */
+
+int VSIOverwriteFile( VSILFILE* fpTarget, const char* pszSourceFilename )
+{
+    VSILFILE* fpSource = VSIFOpenL(pszSourceFilename, "rb");
+    if( fpSource == nullptr )
+    {
+        CPLError(CE_Failure, CPLE_FileIO,
+                 "Cannot open %s", pszSourceFilename);
+        return false;
+    }
+
+    const size_t nBufferSize = 4096;
+    void* pBuffer = CPLMalloc(nBufferSize);
+    VSIFSeekL( fpTarget, 0, SEEK_SET );
+    bool bRet = true;
+    while( true )
+    {
+        size_t nRead = VSIFReadL( pBuffer, 1, nBufferSize, fpSource );
+        size_t nWritten = VSIFWriteL( pBuffer, 1, nRead, fpTarget );
+        if( nWritten != nRead )
+        {
+            bRet = false;
+            break;
+        }
+        if( nRead < nBufferSize )
+            break;
+    }
+
+    if( bRet )
+    {
+        bRet = VSIFTruncateL( fpTarget, VSIFTellL(fpTarget) ) == 0;
+        if( !bRet )
+        {
+            CPLError(CE_Failure, CPLE_FileIO, "Truncation failed");
+        }
+    }
+
+    CPLFree(pBuffer);
+    VSIFCloseL(fpSource);
+    return bRet;
 }
 
 /************************************************************************/

@@ -28,7 +28,7 @@
 # DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-
+import gdaltest
 import pytest
 
 from osgeo import gdal
@@ -398,13 +398,16 @@ def _test_tiff_srs(sr, expect_fail):
     This is not a test by itself; it gets called by the tests below.
     """
     ds = gdal.GetDriverByName('GTiff').Create('/vsimem/TestTiffSRS.tif', 1, 1)
-    ds.SetProjection(sr.ExportToWkt())
+    ds.SetSpatialRef(sr)
     ds = None
 
     ds = gdal.Open('/vsimem/TestTiffSRS.tif')
     wkt = ds.GetProjectionRef()
     sr2 = osr.SpatialReference()
     sr2.SetFromUserInput(wkt)
+    if 'Miller' in wkt:
+        # Trick so that the EXTENSION node with a PROJ string including +R_A is added
+        sr2.ImportFromProj4(sr2.ExportToProj4())
     ds = None
 
     gdal.Unlink('/vsimem/TestTiffSRS.tif')
@@ -489,7 +492,7 @@ def test_tiff_srs(use_epsg_code, epsg_code, epsg_proj4_broken):
     'proj4',
     [
         '+proj=eqdc +lat_0=%.16g +lon_0=%.16g +lat_1=%.16g +lat_2=%.16g" +x_0=%.16g +y_0=%.16g' % (1, 2, 3, 4, 5, 6),
-        '+proj=mill +lat_0=%.16g +lon_0=%.16g +x_0=%.16g +y_0=%.16g +R_A' % (1, 2, 3, 4),
+        '+proj=mill +R_A +lon_0=2 +x_0=3 +y_0=4 +datum=WGS84 +units=m +no_defs',
         '+proj=gnom +lat_0=%.16g +lon_0=%.16g +x_0=%.16g +y_0=%.16g' % (1, 2, 3, 4),
         '+proj=robin +lon_0=%.16g +x_0=%.16g +y_0=%.16g' % (1, 2, 3),
         '+proj=sinu +lon_0=%.16g +x_0=%.16g +y_0=%.16g' % (1, 2, 3),
@@ -592,3 +595,122 @@ def test_tiff_srs_read_epsg32631_4979_geotiff1_1():
     sr = ds.GetSpatialRef()
     # PROJ 6.0 didn't include the ID of the base CRS
     assert sr.ExportToWkt().replace(',ID["EPSG",4979]','') == 'PROJCRS["WGS 84 / UTM zone 31N",BASEGEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4979]],CONVERSION["UTM zone 31N",METHOD["Transverse Mercator",ID["EPSG",9807]],PARAMETER["Latitude of natural origin",0,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8801]],PARAMETER["Longitude of natural origin",3,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8802]],PARAMETER["Scale factor at natural origin",0.9996,SCALEUNIT["unity",1],ID["EPSG",8805]],PARAMETER["False easting",500000,LENGTHUNIT["metre",1],ID["EPSG",8806]],PARAMETER["False northing",0,LENGTHUNIT["metre",1],ID["EPSG",8807]],ID["EPSG",16031]],CS[Cartesian,3],AXIS["(E)",east,ORDER[1],LENGTHUNIT["metre",1]],AXIS["(N)",north,ORDER[2],LENGTHUNIT["metre",1]],AXIS["ellipsoidal height (h)",up,ORDER[3],LENGTHUNIT["metre",1]]]'.replace(',ID["EPSG",4979]','')
+
+
+def test_tiff_srs_write_vertical_perspective():
+
+    ds = gdal.GetDriverByName('GTiff').Create('/vsimem/src.tif', 1, 1)
+    sr = osr.SpatialReference()
+    sr.SetGeogCS("GEOG_NAME", "D_DATUM_NAME", "", 3000000, 0)
+    sr.SetVerticalPerspective(1, 2, 0, 1000, 0, 0)
+    gdal.ErrorReset()
+    ds.SetSpatialRef(sr)
+    assert gdal.GetLastErrorMsg() == ''
+    ds = None
+    assert gdal.VSIStatL('/vsimem/src.tif.aux.xml')
+
+    src_ds = gdal.Open('/vsimem/src.tif')
+    # First is PROJ 7
+    assert src_ds.GetSpatialRef().ExportToProj4() in ('+proj=nsper +lat_0=1 +lon_0=2 +h=1000 +x_0=0 +y_0=0 +R=3000000 +units=m +no_defs', '+proj=nsper +R=3000000 +lat_0=1 +lon_0=2 +h=1000 +x_0=0 +y_0=0 +wktext +no_defs')
+    gdal.ErrorReset()
+    gdal.GetDriverByName('GTiff').CreateCopy('/vsimem/dst.tif', src_ds)
+    assert gdal.GetLastErrorMsg() == ''
+    assert gdal.VSIStatL('/vsimem/dst.tif.aux.xml')
+
+    ds = gdal.Open('/vsimem/dst.tif')
+    assert ds.GetSpatialRef().ExportToProj4() == src_ds.GetSpatialRef().ExportToProj4()
+
+    src_ds = None
+    ds = None
+
+    gdal.GetDriverByName('GTiff').Delete('/vsimem/src.tif')
+    gdal.GetDriverByName('GTiff').Delete('/vsimem/dst.tif')
+
+
+def test_tiff_srs_write_ob_tran_eqc():
+
+    ds = gdal.GetDriverByName('GTiff').Create('/vsimem/src.tif', 1, 1)
+    sr = osr.SpatialReference()
+    sr.ImportFromProj4( '+proj=ob_tran +o_proj=eqc +o_lon_p=-90 +o_lat_p=180 +lon_0=0 +R=3396190 +units=m +no_defs' )
+    ds.SetSpatialRef(sr)
+    ds = None
+
+    assert gdal.VSIStatL('/vsimem/src.tif.aux.xml')
+
+    ds = gdal.Open('/vsimem/src.tif')
+    assert ds.GetSpatialRef().ExportToProj4() == '+proj=ob_tran +o_proj=eqc +o_lon_p=-90 +o_lat_p=180 +lon_0=0 +R=3396190 +units=m +no_defs'
+    ds = None
+
+    gdal.GetDriverByName('GTiff').Delete('/vsimem/src.tif')
+
+
+def test_tiff_srs_towgs84_from_epsg_do_not_write_it():
+
+    filename = '/vsimem/test.tif'
+    ds = gdal.GetDriverByName('GTiff').Create(filename, 1, 1)
+    srs_in = osr.SpatialReference()
+    srs_in.ImportFromEPSG(31468)
+    srs_in.AddGuessedTOWGS84()
+    assert srs_in.HasTOWGS84()
+    ds.SetSpatialRef(srs_in)
+    ds = None
+
+    ds = gdal.Open(filename)
+    with gdaltest.config_option('OSR_ADD_TOWGS84_ON_IMPORT_FROM_EPSG', 'NO'):
+        srs = ds.GetSpatialRef()
+    assert not srs.HasTOWGS84()
+
+
+def test_tiff_srs_towgs84_from_epsg_force_write_it():
+
+    filename = '/vsimem/test.tif'
+    ds = gdal.GetDriverByName('GTiff').Create(filename, 1, 1)
+    srs_in = osr.SpatialReference()
+    srs_in.ImportFromEPSG(31468)
+    srs_in.AddGuessedTOWGS84()
+    assert srs_in.HasTOWGS84()
+    with gdaltest.config_option('GTIFF_WRITE_TOWGS84', 'YES'):
+        ds.SetSpatialRef(srs_in)
+        ds = None
+
+    ds = gdal.Open(filename)
+    with gdaltest.config_option('OSR_ADD_TOWGS84_ON_IMPORT_FROM_EPSG', 'NO'):
+        srs = ds.GetSpatialRef()
+    assert srs.HasTOWGS84()
+
+
+def test_tiff_srs_towgs84_with_epsg_code_but_non_default_TOWGS84():
+
+    filename = '/vsimem/test.tif'
+    ds = gdal.GetDriverByName('GTiff').Create(filename, 1, 1)
+    srs_in = osr.SpatialReference()
+    srs_in.SetFromUserInput("""PROJCS["DHDN / 3-degree Gauss-Kruger zone 4",
+    GEOGCS["DHDN",
+        DATUM["Deutsches_Hauptdreiecksnetz",
+            SPHEROID["Bessel 1841",6377397.155,299.1528128,
+                AUTHORITY["EPSG","7004"]],
+            TOWGS84[1,2,3,4,5,6,7],
+            AUTHORITY["EPSG","6314"]],
+        PRIMEM["Greenwich",0,
+            AUTHORITY["EPSG","8901"]],
+        UNIT["degree",0.0174532925199433,
+            AUTHORITY["EPSG","9122"]],
+        AUTHORITY["EPSG","4314"]],
+    PROJECTION["Transverse_Mercator"],
+    PARAMETER["latitude_of_origin",0],
+    PARAMETER["central_meridian",12],
+    PARAMETER["scale_factor",1],
+    PARAMETER["false_easting",4500000],
+    PARAMETER["false_northing",0],
+    UNIT["metre",1,
+        AUTHORITY["EPSG","9001"]],
+    AXIS["Northing",NORTH],
+    AXIS["Easting",EAST],
+    AUTHORITY["EPSG","31468"]]""")
+    ds.SetSpatialRef(srs_in)
+    ds = None
+
+    ds = gdal.Open(filename)
+    srs = ds.GetSpatialRef()
+    assert srs.GetTOWGS84() == (1,2,3,4,5,6,7)
+

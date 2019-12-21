@@ -95,6 +95,8 @@ public:
   virtual CPLErr GetGeoTransform( double * ) override;
   virtual CPLErr SetGeoTransform( double * ) override;
 
+  bool GetRawBinaryLayout(GDALDataset::RawBinaryLayout&) override;
+
 };
 
 /************************************************************************/
@@ -430,6 +432,36 @@ FITSDataset::~FITSDataset() {
     // Close the FITS handle
     fits_close_file(hFITS, &status);
   }
+}
+
+
+/************************************************************************/
+/*                        GetRawBinaryLayout()                          */
+/************************************************************************/
+
+bool FITSDataset::GetRawBinaryLayout(GDALDataset::RawBinaryLayout& sLayout)
+{
+    int status = 0;
+    if( fits_is_compressed_image( hFITS, &status) )
+        return false;
+    GDALDataType eDT = GetRasterBand(1)->GetRasterDataType();
+    if( eDT == GDT_UInt16 || eDT == GDT_UInt32 )
+        return false; // are supported as native signed with offset
+
+    sLayout.osRawFilename = GetDescription();
+    OFF_T headerstart = 0;
+    OFF_T datastart = 0;
+    OFF_T dataend = 0;
+    fits_get_hduoff(hFITS, &headerstart, &datastart, &dataend, &status);
+    if( nBands > 1 )
+        sLayout.eInterleaving = RawBinaryLayout::Interleaving::BSQ;
+    sLayout.eDataType = eDT;
+    sLayout.bLittleEndianOrder = false;
+    sLayout.nImageOffset = static_cast<GIntBig>(datastart);
+    sLayout.nPixelOffset = GDALGetDataTypeSizeBytes(eDT);
+    sLayout.nLineOffset = sLayout.nPixelOffset * nRasterXSize;
+    sLayout.nBandOffset = sLayout.nLineOffset * nRasterYSize;
+    return true;
 }
 
 /************************************************************************/
@@ -921,9 +953,10 @@ void FITSDataset::WriteFITSInfo()
             ctype1.append(fitsproj);
             ctype2.append(fitsproj);
 
-            char * cstr1 = new char [ctype1.length()+1];
-            std::strcpy (cstr1, ctype1.c_str());
-            fits_update_key( hFITS, TSTRING, "CTYPE1", cstr1, nullptr, &status);
+            fits_update_key( hFITS, TSTRING, "CTYPE1",
+                             const_cast<void*>(
+                                 static_cast<const void*>(ctype1.c_str())),
+                             nullptr, &status);
             if (status)
             {
                 // Throw a warning with CFITSIO error status, then ignore status 
@@ -934,9 +967,10 @@ void FITSDataset::WriteFITSInfo()
                 return;
             }
 
-            char * cstr2 = new char [ctype2.length()+1];
-            std::strcpy (cstr2, ctype2.c_str());
-            fits_update_key( hFITS, TSTRING, "CTYPE2", cstr2, nullptr, &status);
+            fits_update_key( hFITS, TSTRING, "CTYPE2",
+                             const_cast<void*>(
+                                 static_cast<const void*>(ctype2.c_str())),
+                             nullptr, &status);
             if (status)
             {
                 // Throw a warning with CFITSIO error status, then ignore status 

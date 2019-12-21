@@ -6,6 +6,8 @@ PDF -- Geospatial PDF
 
 .. shortname:: PDF
 
+.. build_dependencies:: none for write support, Poppler/PoDoFo/PDFium for read support
+
 GDAL supports reading Geospatial PDF documents, by extracting
 georeferencing information and rasterizing the data. Non-geospatial PDF
 documents will also be recognized by the driver.
@@ -34,69 +36,7 @@ Driver capabilities
 Vector support
 --------------
 
-This driver can read and write geospatial PDF
-with vector features. Vector read support requires linking to one of the
-above mentioned dependent libraries, but write support does not. The
-driver can read vector features encoded according to PDF's logical
-structure facilities (as described by "§10.6 - Logical Structure" of PDF
-spec), or retrieve only vector geometries for other vector PDF files.
-
-If there is no such logical structure, the driver will not try to
-interpret the vector content of the PDF, unless you defined the
-OGR_PDF_READ_NON_STRUCTURED configuration option to YES.
-
-Feature style support
----------------------
-
-For write support, the driver has partial support for the style
-information attached to features, encoded according to the
-:ref:`ogr_feature_style`.
-
-The following tools are recognized:
-
--  For points, LABEL and SYMBOL.
--  For lines, PEN.
--  For polygons, PEN and BRUSH.
-
-The supported attributes for each tool are summed up in the following
-table:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 10 60 30
-
-   * - Tool
-     - Supported attributes
-     - Example
-   * - PEN
-     - color (c); width (w); dash pattern (p)
-     - PEN(c:#FF0000,w:5px)
-   * - BRUSH
-     - foreground color (fc)
-     - BRUSH(fc:#0000FF)
-   * - LABEL
-     - | GDAL >= 2.3.0: text (t), limited to ASCII strings; font name (f), see
-       | note below; font size (s); bold (bo); italic (it); text color (c); x and
-       | y offsets (dx, dy); angle (a); anchor point (p), values 1 through 9;
-       | stretch (w)
-       | GDAL <= 2.2.x: text (t), limited to ASCII strings; font size (s); text
-       | color (c); x and y offsets (dx, dy); angle (a)
-     - LABEL(c:#000000,t:"Hello World!",s:5g)
-   * - SYMBOL
-     - id (ogr-sym-0 to ogr-sym-9, and filenames for raster symbols); color (c); size (s)
-     - | SYMBOL(c:#00FF00,id:"ogr- sym-3",s:10)
-       | SYMBOL(c:#00000080,id:"a_symbol.png")
-
-Alpha values are supported for colors to control the opacity. If not
-specified, for BRUSH, it is set at 50% opaque.
-
-For SYMBOL with a bitmap name, only the alpha value of the color
-specified with 'c' is taken into account.
-
-A font name starting with "Times" or containing the string "Serif" (case
-sensitive) will be treated as Times. A font name starting with "Courier"
-or containing the string "Mono" (case sensitive) will be treated as
-Courier. All other font names will be treated as Helvetica.
+See the :ref:`PDF vector <vector.pdf>` documentation page
 
 Metadata
 --------
@@ -139,6 +79,9 @@ Configuration options
 -  *GDAL_PDF_LAYERS_OFF* = list of layers (comma separated) to turn OFF.
    The layer names can be obtained by querying the LAYERS metadata
    domain (Poppler and PDFium).
+-  "GDAL_PDF_LAUNDER_LAYER_NAMES* = YES/NO: (GDAL >= 3.1) Can be set to NO
+   to avoid the layer names reported in the LAYERS metadata domain or as OGR
+   layers for the vector part to be "laundered".
 
 Open Options
 ~~~~~~~~~~~~
@@ -593,15 +536,27 @@ libpodofo 0.8.4, 0.9.1 and 0.9.3. Important note: using PoDoFo 0.9.0 is
 strongly discouraged, as it could cause crashes in GDAL due to a bug in
 PoDoFo.
 
-PDFium (GDAL > 2.1.0)
-~~~~~~~~~~~~~~~~~~~~~
+PDFium
+~~~~~~
 
 Using PDFium as a backend allows access to raster, vector,
 georeferencing and other metadata. The PDFium backend has also support
 for arbitrary overviews, for fast zoom-out.
 
 Only GDAL builds against static builds of PDFium have been tested.
-Building PDFium can be challenging. A `PDFium forked version for simpler
+Building PDFium can be challenging, and particular builds must be used to
+work properly with GDAL.
+
+With GDAL >= 3.1.0
++++++++++++++++++++
+
+The scripts in the <https://github.com/rouault/pdfium_build_gdal_3_1>`__
+repository must be used to build a patched version of PDFium.
+
+With GDAL >= 2.2.0 and < 3.1
+++++++++++++++++++++++++++++
+
+A `PDFium forked version for simpler
 builds <https://github.com/rouault/pdfium>`__ is available (for Windows,
 a dedicated
 `win_gdal_build <https://github.com/rouault/pdfium/tree/win_gdal_build>`__
@@ -646,9 +601,10 @@ Examples
 See also
 --------
 
+:ref:`PDF vector <vector.pdf>` documentation page
+
 Specifications :
 
--  :ref:`ogr_feature_style`
 -  `OGC GeoPDF Encoding Best Practice Version 2.2
    (08-139r3) <http://portal.opengeospatial.org/files/?artifact_id=40537>`__
 -  `Adobe Supplement to ISO

@@ -360,6 +360,9 @@ typedef unsigned int  GUIntptr_t;
 #  endif
 #endif
 
+// Marker for unstable API
+#define CPL_UNSTABLE_API CPL_DLL
+
 #endif
 
 /*! @cond Doxygen_Suppress */
@@ -1172,6 +1175,18 @@ inline bool operator!= (const bool& one, const MSVCPedanticBool& other) { return
 #else
 #define CPL_NOSANITIZE_UNSIGNED_INT_OVERFLOW
 #endif
+
+#if defined(__cplusplus) && !defined(CPL_SUPRESS_CPLUSPLUS) && defined(GDAL_COMPILATION)
+extern "C++" {
+template<class C, class A, class B>
+CPL_NOSANITIZE_UNSIGNED_INT_OVERFLOW
+inline C CPLUnsanitizedAdd(A a, B b)
+{
+    return a + b;
+}
+}
+#endif
+
 /*! @endcond */
 
 /*! @cond Doxygen_Suppress */

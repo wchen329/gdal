@@ -5,6 +5,8 @@ MapInfo TAB and MIF/MID
 
 .. shortname:: MITAB
 
+.. built_in_by_default::
+
 MapInfo datasets in native (TAB) format and in interchange (MIF/MID)
 format are supported for reading and writing. Starting with GDAL 2.0,
 update of existing TAB files is supported (append of new features,
@@ -130,12 +132,13 @@ Layer Creation Options
    internally converted to MapInfo charsets names. Default value is ''
    that equals to 'Neutral' MapInfo charset.
 
-Compatibility
-~~~~~~~~~~~~~
+Configuration options
+~~~~~~~~~~~~~~~~~~~~~
 
-Before v1.8.0 , the driver was incorrectly using a "." as the delimiter
-for id: parameters and starting with v1.8.0 the driver uses a comma as
-the delimiter was per the OGR Feature Style Specification.
+-  :decl_configoption:`MITAB_SET_TOWGS84_ON_KNOWN_DATUM` =YES/NO: (GDAL >= 3.0.3).
+   The default behaviour, starting with GDAL 3.0.3, is NO. That is,
+   the TOWGS84 parameters read from the .tab header will *not* be set on the
+   Datum object of the CRS, when the datum can be inferred.
 
 See Also
 ~~~~~~~~

@@ -232,7 +232,7 @@ char ** OGRPGTableLayer::GetMetadataDomainList()
 {
     if( pszDescription == nullptr )
         GetMetadata();
-    if( pszDescription[0] != '\0' )
+    if( pszDescription != nullptr && pszDescription[0] != '\0' )
         return CSLAddString(nullptr, "");
     return nullptr;
 }
@@ -909,9 +909,6 @@ OGRFeature *OGRPGTableLayer::GetNextFeature()
     if( bDeferredCreation && RunDeferredCreationIfNecessary() != OGRERR_NONE )
         return nullptr;
     poDS->EndCopy();
-
-    if( pszQueryStatement == nullptr )
-        ResetReading();
 
     if( pszQueryStatement == nullptr )
         ResetReading();

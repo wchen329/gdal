@@ -60,6 +60,22 @@ static int TIFFReadAndRealloc( TIFF* tif, tmsize_t size,
 #endif
         tmsize_t already_read = 0;
 
+
+#if SIZEOF_SIZE_T != 8
+        /* On 32 bit processes, if the request is large enough, check against */
+        /* file size */
+        if( size > 1000 * 1000 * 1000 )
+        {
+            uint64 filesize = TIFFGetFileSize(tif);
+            if( (uint64)size >= filesize )
+            {
+                TIFFErrorExt(tif->tif_clientdata, module,
+                             "Chunk size requested is larger than file size.");
+                return 0;
+            }
+        }
+#endif
+
         /* On 64 bit processes, read first a maximum of 1 MB, then 10 MB, etc */
         /* so as to avoid allocating too much memory in case the file is too */
         /* short. We could ask for the file size, but this might be */
@@ -707,7 +723,7 @@ TIFFReadRawStrip(TIFF* tif, uint32 strip, void* buf, tmsize_t size)
 {
 	static const char module[] = "TIFFReadRawStrip";
 	TIFFDirectory *td = &tif->tif_dir;
-	uint64 bytecount;
+	uint64 bytecount64;
 	tmsize_t bytecountm;
 
 	if (!TIFFCheckRead(tif, 0))
@@ -725,14 +741,21 @@ TIFFReadRawStrip(TIFF* tif, uint32 strip, void* buf, tmsize_t size)
 		    "Compression scheme does not support access to raw uncompressed data");
 		return ((tmsize_t)(-1));
 	}
-	bytecount = TIFFGetStrileByteCount(tif, strip);
-        bytecountm = _TIFFCastUInt64ToSSize(tif, bytecount, module);
-	if (bytecountm == 0) {
+	bytecount64 = TIFFGetStrileByteCount(tif, strip);
+	if (size != (tmsize_t)(-1) && (uint64)size <= bytecount64)
+		bytecountm = size;
+	else
+		bytecountm = _TIFFCastUInt64ToSSize(tif, bytecount64, module);
+	if( bytecountm == 0 ) {
 		return ((tmsize_t)(-1));
 	}
-	if (size != (tmsize_t)(-1) && size < bytecountm)
-		bytecountm = size;
 	return (TIFFReadRawStrip1(tif, strip, buf, bytecountm, module));
+}
+
+TIFF_NOSANITIZE_UNSIGNED_INT_OVERFLOW
+static uint64 NoSantizeSubUInt64(uint64 a, uint64 b)
+{
+    return a - b;
 }
 
 /*
@@ -818,7 +841,7 @@ TIFFFillStrip(TIFF* tif, uint32 strip)
 					"Read error on strip %lu; "
 					"got %I64u bytes, expected %I64u",
 					(unsigned long) strip,
-					(unsigned __int64) tif->tif_size - TIFFGetStrileOffset(tif, strip),
+					(unsigned __int64) NoSantizeSubUInt64(tif->tif_size, TIFFGetStrileOffset(tif, strip)),
 					(unsigned __int64) bytecount);
 #else
 				TIFFErrorExt(tif->tif_clientdata, module,
@@ -826,7 +849,7 @@ TIFFFillStrip(TIFF* tif, uint32 strip)
 					"Read error on strip %lu; "
 					"got %llu bytes, expected %llu",
 					(unsigned long) strip,
-					(unsigned long long) tif->tif_size - TIFFGetStrileOffset(tif, strip),
+					(unsigned long long) NoSantizeSubUInt64(tif->tif_size, TIFFGetStrileOffset(tif, strip)),
 					(unsigned long long) bytecount);
 #endif
 				tif->tif_curstrip = NOSTRIP;
@@ -1163,10 +1186,11 @@ TIFFReadRawTile(TIFF* tif, uint32 tile, void* buf, tmsize_t size)
 		return ((tmsize_t)(-1));
 	}
 	bytecount64 = TIFFGetStrileByteCount(tif, tile);
-	if (size != (tmsize_t)(-1) && (uint64)size < bytecount64)
-		bytecount64 = (uint64)size;
-	bytecountm = _TIFFCastUInt64ToSSize(tif, bytecount64, module);
-        if( bytecountm == 0 ) {
+	if (size != (tmsize_t)(-1) && (uint64)size <= bytecount64)
+		bytecountm = size;
+	else
+		bytecountm = _TIFFCastUInt64ToSSize(tif, bytecount64, module);
+	if( bytecountm == 0 ) {
 		return ((tmsize_t)(-1));
 	}
 	return (TIFFReadRawTile1(tif, tile, buf, bytecountm, module));

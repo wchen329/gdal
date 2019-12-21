@@ -32,6 +32,7 @@
 #include "gdal_utils.h"
 #include "gdalwarper.h"
 #include "cogdriver.h"
+#include "geotiff.h"
 
 #include <algorithm>
 #include <memory>
@@ -692,20 +693,28 @@ GDALDataset* GDALCOGCreator::Create(const char * pszFilename,
             aosOptions.SetNameValue("WEBP_LOSSLESS", "YES");
         aosOptions.SetNameValue("WEBP_LEVEL", pszQuality);
     }
-    else if( EQUAL(osCompress, "DEFLATE") )
+    else if( EQUAL(osCompress, "DEFLATE") || EQUAL(osCompress, "LERC_DEFLATE") )
     {
         aosOptions.SetNameValue("ZLEVEL",
                                 CSLFetchNameValue(papszOptions, "LEVEL"));
     }
-    else if( EQUAL(osCompress, "ZSTD") )
+    else if( EQUAL(osCompress, "ZSTD") || EQUAL(osCompress, "LERC_ZSTD")  )
     {
         aosOptions.SetNameValue("ZSTD_LEVEL",
                                 CSLFetchNameValue(papszOptions, "LEVEL"));
+    }
+
+    if( STARTS_WITH_CI(osCompress, "LERC") )
+    {
+        aosOptions.SetNameValue("MAX_Z_ERROR",
+                                CSLFetchNameValue(papszOptions, "MAX_Z_ERROR"));
     }
     aosOptions.SetNameValue("BIGTIFF",
                                 CSLFetchNameValue(papszOptions, "BIGTIFF"));
     aosOptions.SetNameValue("NUM_THREADS",
                                 CSLFetchNameValue(papszOptions, "NUM_THREADS"));
+    aosOptions.SetNameValue("GEOTIFF_VERSION",
+                            CSLFetchNameValue(papszOptions, "GEOTIFF_VERSION"));
 
     if( EQUAL( osOverviews, "NONE") )
     {
@@ -793,6 +802,10 @@ void GDALRegister_COG()
         osOptions += "   <Option name='QUALITY' type='int' "
                      "description='JPEG/WEBP quality 1-100' default='75'/>";
     }
+#ifdef HAVE_LERC
+    osOptions += ""
+"   <Option name='MAX_Z_ERROR' type='float' description='Maximum error for LERC compression' default='0'/>";
+#endif
     osOptions +=
 "   <Option name='NUM_THREADS' type='string' "
         "description='Number of worker threads for compression. "
@@ -831,6 +844,13 @@ void GDALRegister_COG()
         "tiles match'/>"
 "  <Option name='ADD_ALPHA' type='boolean' description='Can be set to NO to "
         "disable the addition of an alpha band in case of reprojection' default='YES'/>"
+#if LIBGEOTIFF_VERSION >= 1600
+"   <Option name='GEOTIFF_VERSION' type='string-select' default='AUTO' description='Which version of GeoTIFF must be used'>"
+"       <Value>AUTO</Value>"
+"       <Value>1.0</Value>"
+"       <Value>1.1</Value>"
+"   </Option>"
+#endif
 "</CreationOptionList>";
 
     auto poDriver = new GDALDriver();

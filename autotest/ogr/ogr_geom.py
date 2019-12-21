@@ -659,9 +659,9 @@ def test_ogr_geom_segmentize():
     assert geom.ExportToWkt() == 'LINESTRING (0 0 1,0 1 1,0 2 1,0 3 1,0 4 1,0 5 1,0 6 1,0 7 1,0 8 1,0 9 1,0 10 1)'
 
     # 2D + M
-    geom = ogr.CreateGeometryFromWkt('LINESTRING M(0 0 1,0 10 1)')
+    geom = ogr.CreateGeometryFromWkt('LINESTRING M(0 0 1,0 10 2)')
     geom.Segmentize(5)
-    assert geom.ExportToIsoWkt() == 'LINESTRING M (0 0 1,0 5 1,0 10 1)'
+    assert geom.ExportToIsoWkt() == 'LINESTRING M (0 0 1,0 5 2,0 10 2)'
 
     # 2D + ZM
     geom = ogr.CreateGeometryFromWkt('LINESTRING ZM(0 0 1 2,0 10 1 2)')
@@ -817,18 +817,15 @@ def test_ogr_geom_linestring_limits():
     gdal.PopErrorHandler()
     assert gdal.GetLastErrorType() != 0
 
-    if False:  # pylint: disable=using-constant-test
-        gdal.ErrorReset()
-        gdal.PushErrorHandler('CPLQuietErrorHandler')
+    gdal.ErrorReset()
+    with gdaltest.error_handler():
         geom.SetPoint(2147000000, 5, 6, 7)
-        gdal.PopErrorHandler()
-        assert gdal.GetLastErrorType() != 0
+    assert gdal.GetLastErrorType() != 0
 
-        gdal.ErrorReset()
-        gdal.PushErrorHandler('CPLQuietErrorHandler')
+    gdal.ErrorReset()
+    with gdaltest.error_handler():
         geom.SetPoint_2D(2147000000, 5, 6)
-        gdal.PopErrorHandler()
-        assert gdal.GetLastErrorType() != 0
+    assert gdal.GetLastErrorType() != 0
 
     geom = ogr.CreateGeometryFromWkt('LINESTRING(0 0)')
     assert geom.Length() == 0
@@ -3266,6 +3263,14 @@ def test_ogr_geom_force_polygonzm_to_linestring():
 ###############################################################################
 
 
+def test_ogr_geom_force_polygonzm_to_multilinestring():
+    g = ogr.CreateGeometryFromWkt('POLYGON ZM ((0 0 10 20,0 1 30 40,1 1 50 60,0 0 10 70))')
+    wkt = ogr.ForceToMultiLineString(g).ExportToIsoWkt()
+    assert wkt == 'MULTILINESTRING ZM ((0 0 10 20,0 1 30 40,1 1 50 60,0 0 10 70))'
+
+###############################################################################
+
+
 def test_ogr_geom_create_from_wkt_polyhedrasurface():
     g = ogr.CreateGeometryFromWkt('POLYHEDRALSURFACE (((0 0 0,0 0 1,0 1 1,0 1 0,0 0 0)))')
     assert g.ExportToWkt() == 'POLYHEDRALSURFACE Z (((0 0 0,0 0 1,0 1 1,0 1 0,0 0 0)))'
@@ -3306,3 +3311,12 @@ def test_ogr_geom_makevalid():
     assert g is None or g.ExportToWkt() == 'MULTIPOLYGON (((0 0,5 5,10 0,0 0)),((5 5,0 10,10 10,5 5)))'
 
     return 'success'
+
+###############################################################################
+
+
+def test_ogr_geom_force_multipolygon_z_to_compound_curve():
+
+    g = ogr.CreateGeometryFromWkt('MULTIPOLYGON Z (((0 0 0,0 1 0,1 1 0,0 0 0)))')
+    g = ogr.ForceTo(g, ogr.wkbCompoundCurve)
+    assert g.ExportToIsoWkt() == 'COMPOUNDCURVE Z ((0 0 0,0 1 0,1 1 0,0 0 0))'

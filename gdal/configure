@@ -1064,6 +1064,7 @@ enable_driver_csv
 enable_driver_dgn
 enable_driver_dxf
 enable_driver_edigeo
+enable_driver_flatgeobuf
 enable_driver_geoconcept
 enable_driver_georss
 enable_driver_gml
@@ -1104,7 +1105,6 @@ enable_driver_cloudant
 enable_driver_couchdb
 enable_driver_csw
 enable_driver_elastic
-enable_driver_gft
 enable_driver_ngw
 enable_driver_plscenes
 enable_driver_wfs
@@ -1204,8 +1204,6 @@ with_podofo
 with_podofo_lib
 with_podofo_extra_lib_for_test
 with_pdfium
-with_pdfium_lib
-with_pdfium_extra_lib_for_test
 with_gdal_ver
 with_macosx_framework
 with_perl
@@ -1982,6 +1980,8 @@ Optional Features:
   --disable-driver-dgn    disable dgn driver support (enabled by default)
   --disable-driver-dxf    disable dxf driver support (enabled by default)
   --disable-driver-edigeo disable edigeo driver support (enabled by default)
+  --disable-driver-flatgeobuf
+                          disable flatgeobuf driver support (enabled by default)
   --disable-driver-geoconcept
                           disable geoconcept driver support (enabled by default)
   --disable-driver-georss disable georss driver support (enabled by default)
@@ -2045,8 +2045,6 @@ Optional Features:
                           requires curl)
   --disable-driver-elastic
                           disable elastic driver support (enabled by default,
-                          requires curl)
-  --disable-driver-gft    disable gft driver support (enabled by default,
                           requires curl)
   --disable-driver-ngw    disable ngw driver support (enabled by default,
                           requires curl)
@@ -2212,8 +2210,6 @@ Optional Packages:
   --with-podofo-lib=ARG   podofo Link Flags (i.e. -L/xxx -lpodofo ...). Mainly for static libpodofo
   --with-podofo-extra-lib-for-test=ARG   Additional libraries to pass the detection test, but not used for libgdal linking (i.e. -ljpeg ...). Mainly for static libpodofo
   --with-pdfium=ARG    Include pdfium (for PDF) support (ARG=no(default), yes or pdfium install path)
-  --with-pdfium-lib=ARG   pdfium Link Flags (i.e. -L/xxx -lpdfium ...). Mainly for static libpdfium
-  --with-pdfium-extra-lib-for-test=ARG   Additional libraries to pass the detection test, but not used for libgdal linking (i.e. -ljpeg ...). Mainly for static libpdfium
   --with-gdal-ver=ARG   Override GDAL version
   --with-macosx-framework         Build and install GDAL as a Mac OS X Framework
   --with-perl           Enable perl bindings
@@ -20339,6 +20335,8 @@ fi
 	fi
 	rm -f conftest*
 
+SAVED_CFLAGS=$CFLAGS
+CFLAGS=`echo "$CFLAGS " | sed "s/-fsanitize=undefined //" | sed "s/-fsanitize=address //" | sed "s/-fsanitize=unsigned-integer-overflow //"`
 
   echo 'void g(); int main(){ g(); return 0; }' > conftest1.c
 
@@ -20482,6 +20480,7 @@ fi
   SO_EXT=$SO_EXT
 
 
+CFLAGS=$SAVED_CFLAGS
 else
 with_libtool=yes
 fi
@@ -26786,6 +26785,35 @@ else
   INTERNAL_FORMAT_edigeo_ENABLED=no
 fi
 
+# Check whether --enable-driver-flatgeobuf was given.
+if test "${enable_driver_flatgeobuf+set}" = set; then :
+  enableval=$enable_driver_flatgeobuf;
+fi
+cur_driver_enabled=yes
+requested=$enable_driver_flatgeobuf
+if test "$all_drivers_disabled" = "yes"; then :
+  if test "x$requested" = "xyes"; then :
+    cur_driver_enabled=yes
+  else
+    cur_driver_enabled=no
+  fi
+else
+  if test "x$requested" != "xno"; then :
+    cur_driver_enabled=yes
+  else
+    cur_driver_enabled=no
+  fi
+fi
+
+if test "$cur_driver_enabled" = "yes"; then :
+  OGRFORMATS_ENABLED="$OGRFORMATS_ENABLED flatgeobuf"
+  INTERNAL_FORMAT_flatgeobuf_ENABLED=yes
+  OGRFORMATS_ENABLED_CFLAGS="$OGRFORMATS_ENABLED_CFLAGS -DFLATGEOBUF_ENABLED"
+else
+  OGRFORMATS_DISABLED="$OGRFORMATS_DISABLED flatgeobuf"
+  INTERNAL_FORMAT_flatgeobuf_ENABLED=no
+fi
+
 # Check whether --enable-driver-geoconcept was given.
 if test "${enable_driver_geoconcept+set}" = set; then :
   enableval=$enable_driver_geoconcept;
@@ -27948,33 +27976,6 @@ if test "$cur_driver_enabled" = "yes"; then :
 else
   OGRFORMATS_DISABLED="$OGRFORMATS_DISABLED elastic"
   INTERNAL_FORMAT_elastic_ENABLED=no
-fi
-
-# Check whether --enable-driver-gft was given.
-if test "${enable_driver_gft+set}" = set; then :
-  enableval=$enable_driver_gft;
-fi
-cur_driver_enabled=yes
-requested=$enable_driver_gft
-if test "$all_drivers_disabled" = "yes"; then :
-  if test "x$requested" = "xyes"; then :
-    cur_driver_enabled=yes
-  else
-    cur_driver_enabled=no
-  fi
-else
-  if test "x$requested" != "xno"; then :
-    cur_driver_enabled=yes
-  else
-    cur_driver_enabled=no
-  fi
-fi
-
-if test "$cur_driver_enabled" = "yes"; then :
-  INTERNAL_FORMAT_gft_ENABLED=yes
-else
-  OGRFORMATS_DISABLED="$OGRFORMATS_DISABLED gft"
-  INTERNAL_FORMAT_gft_ENABLED=no
 fi
 
 # Check whether --enable-driver-ngw was given.
@@ -33174,18 +33175,23 @@ $as_echo "found libecwj2 in $with_ecw/lib." >&6; }
 
   # ECW SDK 5.0 style and also for the case where license type is included in path i.e. specific license type is requested.
   elif test -r $with_ecw/lib/$ECW_ARCH/$ECW_CONF/libNCSEcw.a ; then
-    # Test if we must use the newabi version (SDK 5.4)
-    if test -r $with_ecw/lib/newabi/$ECW_ARCH/$ECW_CONF/libNCSEcw.a; then
+    # Test if we must use the newabi/cpp11abi version (SDK 5.4+)
+    if test -r $with_ecw/lib/newabi/$ECW_ARCH/$ECW_CONF/libNCSEcw.a || test -r $with_ecw/lib/cpp11abi/$ECW_ARCH/$ECW_CONF/libNCSEcw.a; then
+        if test -d $with_ecw/lib/newabi; then
+            ECW_ABIDIR=newabi
+        else
+            ECW_ABIDIR=cpp11abi
+        fi
         echo "#include <string>" > testnewabi.cpp
         echo "namespace NCS { class CString { public: static std::wstring Utf8Decode (const std::string &sUtf8); }; }" >> testnewabi.cpp
         echo "int main() { return static_cast<int>(NCS::CString::Utf8Decode(std::string()).size()); }" >> testnewabi.cpp
-        if test -z "`${CXX} ${CXXFLAGS} ${CPPFLAGS} testnewabi.cpp -L$with_ecw/lib/newabi/$ECW_ARCH/$ECW_CONF -lNCSEcw -o testnewabi 2>&1`" ; then
-            ECW_LIBDIR=$with_ecw/lib/newabi/$ECW_ARCH/$ECW_CONF
+        if test -z "`${CXX} ${CXXFLAGS} ${CPPFLAGS} testnewabi.cpp -L$with_ecw/lib/$ECW_ABIDIR/$ECW_ARCH/$ECW_CONF -lNCSEcw -o testnewabi 2>&1`" ; then
+            ECW_LIBDIR=$with_ecw/lib/$ECW_ABIDIR/$ECW_ARCH/$ECW_CONF
             ECW_LIBS="-L$ECW_LIBDIR -lNCSEcw $ECW_FRAMEWORK_COCOA"
             with_ecw=$with_ecw/$ecw_license_type
             ECW_54="yes"
-            { $as_echo "$as_me:${as_lineno-$LINENO}: result: found Intergraph 5.4+ SDK with newabi in ${ECW_LIBDIR}." >&5
-$as_echo "found Intergraph 5.4+ SDK with newabi in ${ECW_LIBDIR}." >&6; }
+            { $as_echo "$as_me:${as_lineno-$LINENO}: result: found Intergraph 5.4+ SDK with ${ECW_ABIDIR} in ${ECW_LIBDIR}." >&5
+$as_echo "found Intergraph 5.4+ SDK with ${ECW_ABIDIR} in ${ECW_LIBDIR}." >&6; }
             rm -f testnewabi.*
             rm -f testnewabi
             break
@@ -33203,17 +33209,22 @@ $as_echo "found Intergraph 5.x+ SDK in ${ECW_LIBDIR}." >&6; }
   elif test -d $with_ecw; then
     for ecw_license_type in "Desktop_Read-Write" "Server_Read-Only_EndUser" "Server_Read-Only" "Server_Read-Write" "Desktop_Read-Only"
       do
-        # Test if we must use the newabi version (SDK 5.4)
-        if test -r $with_ecw/$ecw_license_type/lib/newabi/$ECW_ARCH/$ECW_CONF/libNCSEcw.a; then
+        # Test if we must use the newabi/cpp11abi version (SDK 5.4+)
+        if test -r $with_ecw/$ecw_license_type/lib/newabi/$ECW_ARCH/$ECW_CONF/libNCSEcw.a || test -r $with_ecw/$ecw_license_type/lib/cpp11abi/$ECW_ARCH/$ECW_CONF/libNCSEcw.a; then
+            if test -d $with_ecw/lib/newabi; then
+                ECW_ABIDIR=newabi
+            else
+                ECW_ABIDIR=cpp11abi
+            fi
             echo "#include <string>" > testnewabi.cpp
             echo "namespace NCS { class CString { public: static std::wstring Utf8Decode (const std::string &sUtf8); }; }" >> testnewabi.cpp
             echo "int main() { return static_cast<int>(NCS::CString::Utf8Decode(std::string()).size()); }" >> testnewabi.cpp
-            if test -z "`${CXX} ${CXXFLAGS} ${CPPFLAGS} testnewabi.cpp -L$with_ecw/$ecw_license_type/lib/newabi/$ECW_ARCH/$ECW_CONF -lNCSEcw -o testnewabi 2>&1`" ; then
-                ECW_LIBDIR=$with_ecw/$ecw_license_type/lib/newabi/$ECW_ARCH/$ECW_CONF
+            if test -z "`${CXX} ${CXXFLAGS} ${CPPFLAGS} testnewabi.cpp -L$with_ecw/$ecw_license_type/lib/$ECW_ABIDIR/$ECW_ARCH/$ECW_CONF -lNCSEcw -o testnewabi 2>&1`" ; then
+                ECW_LIBDIR=$with_ecw/$ecw_license_type/lib/$ECW_ABIDIR/$ECW_ARCH/$ECW_CONF
                 ECW_LIBS="-L$ECW_LIBDIR -lNCSEcw $ECW_FRAMEWORK_COCOA"
                 with_ecw=$with_ecw/$ecw_license_type
-                { $as_echo "$as_me:${as_lineno-$LINENO}: result: found Intergraph 5.4+ SDK with newabi in ${ECW_LIBDIR}." >&5
-$as_echo "found Intergraph 5.4+ SDK with newabi in ${ECW_LIBDIR}." >&6; }
+                { $as_echo "$as_me:${as_lineno-$LINENO}: result: found Intergraph 5.4+ SDK with ${ECW_ABIDIR} in ${ECW_LIBDIR}." >&5
+$as_echo "found Intergraph 5.4+ SDK with ${ECW_ABIDIR} in ${ECW_LIBDIR}." >&6; }
                 ECW_54="yes"
                 rm -f testnewabi.*
                 rm -f testnewabi
@@ -36389,12 +36400,6 @@ if test "$CURL_SETTING" = "yes" ; then
   if test "x$driver_enabled" = "xyes"; then
     OGRFORMATS_ENABLED="$OGRFORMATS_ENABLED elastic"
     OGRFORMATS_ENABLED_CFLAGS="$OGRFORMATS_ENABLED_CFLAGS -DELASTIC_ENABLED"
-  fi
-
-  driver_enabled=$INTERNAL_FORMAT_gft_ENABLED
-  if test "x$driver_enabled" = "xyes"; then
-    OGRFORMATS_ENABLED="$OGRFORMATS_ENABLED gft"
-    OGRFORMATS_ENABLED_CFLAGS="$OGRFORMATS_ENABLED_CFLAGS -DGFT_ENABLED"
   fi
 
   driver_enabled=$INTERNAL_FORMAT_ngw_ENABLED
@@ -40347,105 +40352,43 @@ $as_echo_n "checking for pdfium... " >&6; }
 
 if test "$with_pdfium" != "no" -a "$with_pdfium" != ""; then
 
-
-# Check whether --with-pdfium-lib was given.
-if test "${with_pdfium_lib+set}" = set; then :
-  withval=$with_pdfium_lib;
-fi
-
-
     if test "$with_pdfium" = "yes" ; then
-        TEST_PDFIUM_INC="-I/usr/include -I/usr/include/pdfium"
+        PDFIUM_INC="-I/usr/include/pdfium"
         PDFIUM_LIB="-lpdfium"
-        PDFIUM_LIBDIR="/usr"
     else
-        TEST_PDFIUM_INC="-I$with_pdfium -I$with_pdfium/include -I$with_pdfium/include/pdfium"
-        PDFIUM_LIB="-L$with_pdfium -L$with_pdfium/lib -lpdfium"
-        PDFIUM_LIBDIR="$with_pdfium"
+        PDFIUM_INC="-I$with_pdfium/include/pdfium"
+        PDFIUM_LIB="-L$with_pdfium/lib -lpdfium"
     fi
+
+    PDFIUM_LIB="$PDFIUM_LIB -ljpeg -lpng -lz -llcms2 -lpthread -lm -lstdc++"
 
     if test ! -z "`uname | grep Darwin`" ; then
         PDFIUM_LIB="-stdlib=libstdc++ $PDFIUM_LIB"
     fi
 
-    if test "x$with_pdfium_lib" = "x" ; then
-        rm -f testpdfium.*
-        echo '#include <fpdfview.h>' > testpdfium.cpp
-        echo '#include <core/include/fpdfapi/fpdf_page.h>' >> testpdfium.cpp
-        echo 'int main(int argc, char** argv) { FPDF_InitLibrary(); FPDF_DestroyLibrary(); return 0; } ' >> testpdfium.cpp
-        TEST_CXX_FLAGS="-std=c++0x"
-        if test ! -z "`uname | grep Darwin`" ; then
-          TEST_CXX_FLAGS="$TEST_CXX_FLAGS -stdlib=libstdc++"
-        fi
-        if ${CXX} ${CXXFLAGS} ${CPPFLAGS} $TEST_CXX_FLAGS testpdfium.cpp -o testpdfium ${TEST_PDFIUM_INC} ${PDFIUM_LIB} >/dev/null 2>/dev/null; then
-            HAVE_PDFIUM=yes
-            CXXFLAGS="$TEST_CXX_FLAGS $CXXFLAGS"
-            if test "$PDF_PLUGIN" = "no"; then
-                LIBS="${PDFIUM_LIB} ${LIBS}"
-            fi
-            PDFIUM_PLUGIN_LIB="${PDFIUM_LIB}"
-            PDFIUM_INC=$TEST_PDFIUM_INC
-            { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
-$as_echo "yes" >&6; }
-        fi
-        rm -f testpdfium.*
-        rm -f testpdfium
+    rm -f testpdfium.*
+    echo '#include "public/fpdfview.h"' > testpdfium.cpp
+    echo '#include "core/fpdfapi/page/cpdf_page.h"' >> testpdfium.cpp
+    echo 'int main(int argc, char** argv) { FPDF_InitLibrary(); FPDF_DestroyLibrary(); return 0; } ' >> testpdfium.cpp
+    TEST_CXX_FLAGS=""
+    if test ! -z "`uname | grep Darwin`" ; then
+        TEST_CXX_FLAGS="$TEST_CXX_FLAGS -stdlib=libstdc++"
     fi
-
-    if test "$HAVE_PDFIUM" = "no"; then
-        if test "x$with_pdfium_lib" != "x" ; then
-            PDFIUM_LIB="$with_pdfium_lib"
-        else
-            # This may be a static libpdfium.a, so add dependent libraries.
-            PDFIUM_LIB="-L$PDFIUM_LIBDIR -L$PDFIUM_LIBDIR/lib/pdfium -lpdfium -lfpdfdoc -lfpdfapi -lfpdftext -lformfiller -lpdfwindow"
-            PDFIUM_LIB="$PDFIUM_LIB -lfxedit -lfpdfdoc -lfxcodec -lfx_libopenjpeg -lfx_lcms2 -lfx_libjpeg -lfx_zlib"
-            PDFIUM_LIB="$PDFIUM_LIB -lfdrm -lfxge -lfreetype -lfx_agg -lfxcrt -lbigint"
-            if test ! -z "`uname | grep Darwin`" ; then
-                PDFIUM_LIB="-framework AppKit -framework CoreFoundation $PDFIUM_LIB"
-            fi
+    if ${CXX} ${CXXFLAGS} ${CPPFLAGS} $TEST_CXX_FLAGS testpdfium.cpp -o testpdfium ${PDFIUM_INC} ${PDFIUM_LIB} >/dev/null 2>/dev/null; then
+        HAVE_PDFIUM=yes
+        CXXFLAGS="$TEST_CXX_FLAGS $CXXFLAGS"
+        if test "$PDF_PLUGIN" = "no"; then
+            LIBS="${PDFIUM_LIB} ${LIBS}"
         fi
-
-
-# Check whether --with-pdfium-extra-lib-for-test was given.
-if test "${with_pdfium_extra_lib_for_test+set}" = set; then :
-  withval=$with_pdfium_extra_lib_for_test;
-fi
-
-
-        if test "x$with_pdfium_extra_lib_for_test" = "x" ; then
-            TEST_PDFIUM_LIB="$PDFIUM_LIB"
-        else
-            TEST_PDFIUM_LIB="$PDFIUM_LIB $with_pdfium_extra_lib_for_test"
-        fi
-
-        rm -f testpdfium.*
-        echo '#include <fpdfview.h>' > testpdfium.cpp
-        echo '#include <core/include/fpdfapi/fpdf_page.h>' >> testpdfium.cpp
-        echo 'int main(int argc, char** argv) { FPDF_InitLibrary(); FPDF_DestroyLibrary(); return 0; } ' >> testpdfium.cpp
-        TEST_CXX_FLAGS="-std=c++0x"
-        if test ! -z "`uname | grep Darwin`" ; then
-          TEST_CXX_FLAGS="$TEST_CXX_FLAGS -stdlib=libstdc++"
-        fi
-        if ${CXX} ${CXXFLAGS} ${CPPFLAGS} $TEST_CXX_FLAGS testpdfium.cpp -o testpdfium ${TEST_PDFIUM_INC} ${TEST_PDFIUM_LIB} >/dev/null 2>/dev/null; then
-            HAVE_PDFIUM=yes
-            CXXFLAGS="$TEST_CXX_FLAGS $CXXFLAGS"
-            if test "$PDF_PLUGIN" = "no"; then
-                LIBS="${PDFIUM_LIB} ${LIBS}"
-            fi
-            PDFIUM_PLUGIN_LIB="${PDFIUM_LIB}"
-            PDFIUM_INC=$TEST_PDFIUM_INC
-            { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+        PDFIUM_PLUGIN_LIB="${PDFIUM_LIB}"
+        { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 $as_echo "yes" >&6; }
-        else
-            { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-        fi
-        rm -f testpdfium.*
-        rm -f testpdfium
     fi
+    rm -f testpdfium.*
+    rm -f testpdfium
 
     if test "$HAVE_PDFIUM" = "no" -a "$with_pdfium" != ""; then
-        as_fn_error $? "pdfium requested but not found" "$LINENO" 5
+        as_fn_error $? "pdfium requested but not found. Must come from https://github.com/rouault/pdfium_build_gdal_3_1" "$LINENO" 5
     fi
 else
     { $as_echo "$as_me:${as_lineno-$LINENO}: result: disabled" >&5

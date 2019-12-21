@@ -228,6 +228,7 @@ static void DumpValue(CPLJSonStreamingWriter& serializer,
         case GEDTC_STRING:
         {
             const char* pszStr;
+            // cppcheck-suppress pointerSize
             memcpy(&pszStr, values, sizeof(const char*));
             if( pszStr )
                 serializer.Add(pszStr);
@@ -439,17 +440,20 @@ static void DumpArrayRec(std::shared_ptr<GDALMDArray> array,
                 dimSizes.back() <= psOptions->nLimitValuesByDim )
             {
                 const size_t nCount = static_cast<size_t>(dimSizes.back());
-                if( nCount != dimSizes.back() ||
-                    nDTSize > std::numeric_limits<size_t>::max() / nCount )
+                if( nCount > 0 )
                 {
-                    serializer.Add("[too many values]");
-                    break;
+                    if( nCount != dimSizes.back() ||
+                        nDTSize > std::numeric_limits<size_t>::max() / nCount )
+                    {
+                        serializer.Add("[too many values]");
+                        break;
+                    }
+                    std::vector<GByte> abyTmp(nDTSize * nCount);
+                    count.back() = nCount;
+                    if( !array->Read(startIdx.data(), count.data(), nullptr, nullptr, dt, &abyTmp[0]) )
+                        break;
+                    lambdaDumpValue(abyTmp, count.back());
                 }
-                std::vector<GByte> abyTmp(nDTSize * nCount);
-                count.back() = nCount;
-                if( !array->Read(startIdx.data(), count.data(), nullptr, nullptr, dt, &abyTmp[0]) )
-                    break;
-                lambdaDumpValue(abyTmp, count.back());
             }
             else
             {
@@ -854,7 +858,7 @@ static void WriteToStdout(const char* pszText, void*)
 /**
  * Lists various information about a GDAL multidimensional dataset.
  *
- * This is the equivalent of the gdalmdiminfo utility.
+ * This is the equivalent of the <a href="/programs/gdalmdiminfo.html">gdalmdiminfo</a>utility.
  *
  * GDALMultiDimInfoOptions* must be allocated and freed with GDALMultiDimInfoOptionsNew()
  * and GDALMultiDimInfoOptionsFree() respectively.
@@ -946,7 +950,7 @@ char *GDALMultiDimInfo( GDALDatasetH hDataset,
  * Allocates a GDALMultiDimInfo struct.
  *
  * @param papszArgv NULL terminated list of options (potentially including filename and open options too), or NULL.
- *                  The accepted options are the ones of the gdalmdiminfo utility.
+ *                  The accepted options are the ones of the <a href="/programs/gdalmdiminfo.html">gdalmdiminfo</a> utility.
  * @param psOptionsForBinary (output) may be NULL (and should generally be NULL),
  *                           otherwise (gdalmultidiminfo_bin.cpp use case) must be allocated with
  *                           GDALMultiDimInfoOptionsForBinaryNew() prior to this function. Will be

@@ -33,7 +33,7 @@
 #include "cpl_csv.h"
 #include "cpl_http.h"
 #include "ogrgeojsonreader.h"
-#include "swq.h"
+#include "ogr_swq.h"
 
 CPL_CVSID("$Id$")
 
@@ -558,11 +558,34 @@ OGRLayer * OGRElasticDataSource::ICreateLayer(const char * pszLayerName,
 /************************************************************************/
 
 CPLHTTPResult* OGRElasticDataSource::HTTPFetch(const char* pszURL,
-                                               char** papszOptions)
+                                               CSLConstList papszOptions)
 {
-    CPLStringList aosOptions(papszOptions, false);
+    CPLStringList aosOptions(papszOptions);
     if( !m_osUserPwd.empty() )
         aosOptions.SetNameValue("USERPWD", m_osUserPwd.c_str());
+    if( !m_oMapHeadersFromEnv.empty() )
+    {
+        const char* pszExistingHeaders = aosOptions.FetchNameValue("HEADERS");
+        std::string osHeaders;
+        if( pszExistingHeaders )
+        {
+            osHeaders += pszExistingHeaders;
+            osHeaders += '\n';
+        }
+        for( const auto& kv: m_oMapHeadersFromEnv )
+        {
+            const char* pszValueFromEnv =
+                CPLGetConfigOption(kv.second.c_str(), nullptr);
+            if( pszValueFromEnv )
+            {
+                osHeaders += kv.first;
+                osHeaders += ": ";
+                osHeaders += pszValueFromEnv;
+                osHeaders += '\n';
+            }
+        }
+        aosOptions.SetNameValue("HEADERS", osHeaders.c_str());
+    }
     return CPLHTTPFetch(pszURL, aosOptions);
 }
 
@@ -714,6 +737,23 @@ int OGRElasticDataSource::Open(GDALOpenInfo* poOpenInfo)
             poOpenInfo->papszOpenOptions, "FLATTEN_NESTED_ATTRIBUTES", true);
     m_osFID = CSLFetchNameValueDef(poOpenInfo->papszOpenOptions, "FID", "ogc_fid");
 
+    const char* pszHeadersFromEnv = CPLGetConfigOption("ES_FORWARD_HTTP_HEADERS_FROM_ENV",
+        CSLFetchNameValue(poOpenInfo->papszOpenOptions, "FORWARD_HTTP_HEADERS_FROM_ENV"));
+    if( pszHeadersFromEnv )
+    {
+        CPLStringList aosTokens(CSLTokenizeString2(pszHeadersFromEnv, ",", 0));
+        for( int i = 0; i < aosTokens.size(); ++i )
+        {
+            char* pszKey = nullptr;
+            const char* pszValue = CPLParseNameValue(aosTokens[i], &pszKey);
+            if( pszKey && pszValue )
+            {
+                m_oMapHeadersFromEnv[pszKey] = pszValue;
+            }
+            CPLFree(pszKey);
+        }
+    }
+
     if( !CheckVersion() )
         return FALSE;
 
@@ -805,6 +845,7 @@ int OGRElasticDataSource::Create(const char *pszFilename,
 
     const char* pszMetaFile = CPLGetConfigOption("ES_META", nullptr);
     m_bOverwrite = CPLTestBool(CPLGetConfigOption("ES_OVERWRITE", "0"));
+    // coverity[tainted_data]
     m_nBulkUpload = (int) CPLAtof(CPLGetConfigOption("ES_BULK", "0"));
 
     // Read in the meta file from disk

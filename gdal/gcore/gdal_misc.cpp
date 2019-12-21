@@ -234,8 +234,8 @@ GDALDataType CPL_STDCALL GDALFindDataType(
     int nBits, int bSigned, int bFloating, int bComplex )
 {
     if( bSigned ) { nBits = std::max(nBits, 16); }
-    if( bComplex ) { nBits = std::max(nBits, !bSigned ? 32 : 16); }
-    if( bFloating ) { nBits = std::max(nBits, !bSigned ? 64 : 32); }
+    if( bComplex ) { nBits = std::max(nBits, !bSigned ? 32 : 16); } // we don't have complex unsigned data types, so for a complex uint16, promote to complex int32
+    if( bFloating ) { nBits = std::max(nBits, 32); }
 
     if( nBits <= 8 ) { return GDT_Byte; }
 
@@ -3049,6 +3049,7 @@ GDALGeneralCmdLineProcessor( int nArgc, char ***ppapszArgv, int nOptions )
 
             if( !bHasOptfile )
             {
+                char** papszArgvOptfileBefore = papszArgvOptfile;
                 if( GDALGeneralCmdLineProcessor(CSLCount(papszArgvOptfile),
                                         &papszArgvOptfile, nOptions) < 0 )
                 {
@@ -3056,6 +3057,7 @@ GDALGeneralCmdLineProcessor( int nArgc, char ***ppapszArgv, int nOptions )
                     CSLDestroy(papszArgvOptfile);
                     return -1;
                 }
+                CSLDestroy(papszArgvOptfileBefore);
             }
 
             char** papszIter = papszArgvOptfile + 1;
@@ -3124,17 +3126,17 @@ GDALGeneralCmdLineProcessor( int nArgc, char ***ppapszArgv, int nOptions )
                 if( CPLFetchBool( papszMD, GDAL_DCAP_MULTIDIM_RASTER, false ) )
                 {
                     if( !osKind.empty() ) osKind += ',';
-                    osKind = "multidimensional raster";
+                    osKind += "multidimensional raster";
                 }
                 if( CPLFetchBool( papszMD, GDAL_DCAP_VECTOR, false ) )
                 {
                     if( !osKind.empty() ) osKind += ',';
-                    osKind = "vector";
+                    osKind += "vector";
                 }
                 if( CPLFetchBool( papszMD, GDAL_DCAP_GNM, false ) )
                 {
                     if( !osKind.empty() ) osKind += ',';
-                    osKind = "geography network";
+                    osKind += "geography network";
                 }
                 if( osKind.empty() )
                     osKind = "unknown kind";

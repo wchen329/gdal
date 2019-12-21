@@ -135,6 +135,39 @@ def test_cog_creation_options():
             assert not gdal.GetDriverByName('COG').CreateCopy(filename, src_ds,
                                                     options = ['COMPRESS=WEBP'])
 
+    if '<Value>LERC' in colist:
+
+        assert gdal.GetDriverByName('COG').CreateCopy(filename, src_ds,
+                                                options = ['COMPRESS=LERC'])
+        filesize_no_z_error = gdal.VSIStatL(filename).size
+        assert gdal.VSIStatL(filename).size != filesize
+
+        assert gdal.GetDriverByName('COG').CreateCopy(filename, src_ds,
+                                options = ['COMPRESS=LERC', 'MAX_Z_ERROR=10'])
+        filesize_with_z_error = gdal.VSIStatL(filename).size
+        assert filesize_with_z_error < filesize_no_z_error
+
+        assert gdal.GetDriverByName('COG').CreateCopy(filename, src_ds,
+                                                options = ['COMPRESS=LERC_DEFLATE'])
+        filesize_lerc_deflate = gdal.VSIStatL(filename).size
+        assert filesize_lerc_deflate < filesize_no_z_error
+
+        assert gdal.GetDriverByName('COG').CreateCopy(filename, src_ds,
+                                                options = ['COMPRESS=LERC_DEFLATE', 'LEVEL=1'])
+        filesize_lerc_deflate_level_1 = gdal.VSIStatL(filename).size
+        assert filesize_lerc_deflate_level_1 > filesize_lerc_deflate
+
+        if '<Value>ZSTD' in colist:
+            assert gdal.GetDriverByName('COG').CreateCopy(filename, src_ds,
+                                                    options = ['COMPRESS=LERC_ZSTD'])
+            filesize_lerc_zstd = gdal.VSIStatL(filename).size
+            assert filesize_lerc_zstd < filesize_no_z_error
+
+            assert gdal.GetDriverByName('COG').CreateCopy(filename, src_ds,
+                                                    options = ['COMPRESS=LERC_ZSTD', 'LEVEL=1'])
+            filesize_lerc_zstd_level_1 = gdal.VSIStatL(filename).size
+            assert filesize_lerc_zstd_level_1 > filesize_lerc_zstd
+
     src_ds = None
     gdal.GetDriverByName('GTiff').Delete(filename)
 
@@ -331,7 +364,7 @@ def test_cog_byte_to_web_mercator():
     for i in range(6):
         if gt[i] != pytest.approx(expected_gt[i], abs=1e-10 * abs(expected_gt[i])):
             assert False, gt
-    assert ds.GetRasterBand(1).Checksum() == 4363
+    assert ds.GetRasterBand(1).Checksum() in (4363, 4264) # 4264 on Mac
     assert ds.GetRasterBand(1).GetMaskBand().Checksum() == 4356
     assert ds.GetRasterBand(1).GetOverviewCount() == 2
     ds = None
@@ -379,7 +412,7 @@ def test_cog_byte_to_web_mercator_manual():
     for i in range(6):
         if gt[i] != pytest.approx(expected_gt[i], abs=1e-10 * abs(expected_gt[i])):
             assert False, gt
-    assert ds.GetRasterBand(1).Checksum() == 4363
+    assert ds.GetRasterBand(1).Checksum() in (4363, 4264) # 4264 on Mac
     assert ds.GetRasterBand(1).GetMaskBand().Checksum() == 4356
     assert ds.GetRasterBand(1).GetOverviewCount() == 2
     ds = None

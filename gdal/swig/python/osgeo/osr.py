@@ -811,6 +811,11 @@ class SpatialReference(_object):
         return _osr.SpatialReference_SetVDG(self, *args, **kwargs)
 
 
+    def SetVerticalPerspective(self, *args, **kwargs):
+        """SetVerticalPerspective(SpatialReference self, double topoOriginLat, double topoOriginLon, double topoOriginHeight, double viewPointHeight, double fe, double fn) -> OGRErr"""
+        return _osr.SpatialReference_SetVerticalPerspective(self, *args, **kwargs)
+
+
     def SetWellKnownGeogCS(self, *args):
         """SetWellKnownGeogCS(SpatialReference self, char const * name) -> OGRErr"""
         return _osr.SpatialReference_SetWellKnownGeogCS(self, *args)
@@ -831,9 +836,19 @@ class SpatialReference(_object):
         return _osr.SpatialReference_SetTOWGS84(self, *args)
 
 
+    def HasTOWGS84(self, *args):
+        """HasTOWGS84(SpatialReference self) -> bool"""
+        return _osr.SpatialReference_HasTOWGS84(self, *args)
+
+
     def GetTOWGS84(self, *args):
         """GetTOWGS84(SpatialReference self) -> OGRErr"""
         return _osr.SpatialReference_GetTOWGS84(self, *args)
+
+
+    def AddGuessedTOWGS84(self, *args):
+        """AddGuessedTOWGS84(SpatialReference self) -> OGRErr"""
+        return _osr.SpatialReference_AddGuessedTOWGS84(self, *args)
 
 
     def SetLocalCS(self, *args):
@@ -936,6 +951,11 @@ class SpatialReference(_object):
         return _osr.SpatialReference_ExportToPrettyWkt(self, *args)
 
 
+    def ExportToPROJJSON(self, *args):
+        """ExportToPROJJSON(SpatialReference self, char ** options=None) -> OGRErr"""
+        return _osr.SpatialReference_ExportToPROJJSON(self, *args)
+
+
     def ExportToProj4(self, *args):
         """ExportToProj4(SpatialReference self) -> OGRErr"""
         return _osr.SpatialReference_ExportToProj4(self, *args)
@@ -989,6 +1009,11 @@ class SpatialReference(_object):
     def ConvertToOtherProjection(self, *args):
         """ConvertToOtherProjection(SpatialReference self, char const * other_projection, char ** options=None) -> SpatialReference"""
         return _osr.SpatialReference_ConvertToOtherProjection(self, *args)
+
+
+    def PromoteTo3D(self, *args):
+        """PromoteTo3D(SpatialReference self, char const * name=None) -> OGRErr"""
+        return _osr.SpatialReference_PromoteTo3D(self, *args)
 
 SpatialReference_swigregister = _osr.SpatialReference_swigregister
 SpatialReference_swigregister(SpatialReference)
@@ -1192,6 +1217,10 @@ def SetPROJSearchPaths(*args):
     """SetPROJSearchPaths(char ** paths)"""
     return _osr.SetPROJSearchPaths(*args)
 
+def GetPROJSearchPaths(*args):
+    """GetPROJSearchPaths() -> char **"""
+    return _osr.GetPROJSearchPaths(*args)
+
 def GetPROJVersionMajor(*args):
     """GetPROJVersionMajor() -> int"""
     return _osr.GetPROJVersionMajor(*args)
@@ -1199,6 +1228,10 @@ def GetPROJVersionMajor(*args):
 def GetPROJVersionMinor(*args):
     """GetPROJVersionMinor() -> int"""
     return _osr.GetPROJVersionMinor(*args)
+
+def GetPROJVersionMicro(*args):
+    """GetPROJVersionMicro() -> int"""
+    return _osr.GetPROJVersionMicro(*args)
 # This file is compatible with both classic and new-style classes.
 
 

@@ -2004,7 +2004,7 @@ def test_tiff_write_64():
     wkt = ds.GetProjection()
     ds = None
 
-    expected_wkt = """GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AXIS["Latitude",NORTH],AXIS["Longitude",EAST],AUTHORITY["EPSG","4326"]]"""
+    expected_wkt = """GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AXIS["Latitude",NORTH],AXIS["Longitude",EAST],AUTHORITY["EPSG","4326"]]"""
 
     assert wkt == expected_wkt, 'coordinate system does not exactly match.'
 
@@ -7157,6 +7157,18 @@ def test_tiff_write_compression_create_and_createcopy():
         assert size_after < size_before, (before, after, size_before, size_after)
 
     gdaltest.tiff_drv.Delete(tmpfile)
+
+###############################################################################
+# Attempt at creating a file with more than 4 billion tiles
+
+
+def test_tiff_write_too_many_tiles():
+
+    src_ds = gdal.Open('<VRTDataset rasterXSize="100000000" rasterYSize="100000000"><VRTRasterBand dataType="Byte" band="1"/></VRTDataset>')
+    with gdaltest.error_handler():
+        assert not gdaltest.tiff_drv.CreateCopy('/vsimem/tmp.tif', src_ds, options = ['TILED=YES'])
+    assert 'File too large regarding tile size' in gdal.GetLastErrorMsg()
+
 
 ###############################################################################
 # Ask to run again tests with GDAL_API_PROXY=YES

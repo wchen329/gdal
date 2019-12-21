@@ -177,6 +177,9 @@ void OGRRegisterAllInternal()
 #ifdef GRASS_ENABLED
     RegisterOGRGRASS();
 #endif
+#ifdef FLATGEOBUF_ENABLED
+    RegisterOGRFlatGeobuf();
+#endif
 #ifdef FME_ENABLED
     RegisterOGRFME();
 #endif
@@ -216,7 +219,7 @@ void OGRRegisterAllInternal()
 #endif
 #ifdef WFS_ENABLED
     RegisterOGRWFS();
-    RegisterOGRWFS3();
+    RegisterOGROAPIF();
 #endif
 #ifdef SOSI_ENABLED
     RegisterOGRSOSI();
@@ -232,9 +235,6 @@ void OGRRegisterAllInternal()
 #endif
 #ifdef EDIGEO_ENABLED
     RegisterOGREDIGEO();
-#endif
-#ifdef GFT_ENABLED
-    RegisterOGRGFT();
 #endif
 #ifdef SVG_ENABLED
     RegisterOGRSVG();

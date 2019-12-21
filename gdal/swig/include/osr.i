@@ -885,6 +885,17 @@ public:
     return OSRSetVDG( self, clong, fe, fn );
   }
 
+%feature( "kwargs" ) SetVerticalPerspective;
+  OGRErr SetVerticalPerspective( double topoOriginLat,
+                                 double topoOriginLon,
+                                 double topoOriginHeight,
+                                 double viewPointHeight,
+                                 double fe, double fn )
+  {
+    return OSRSetVerticalPerspective( self,
+        topoOriginLat, topoOriginLon, topoOriginHeight, viewPointHeight, fe, fn );
+  }
+
   OGRErr SetWellKnownGeogCS( const char *name ) {
     return OSRSetWellKnownGeogCS( self, name );
   }
@@ -909,8 +920,17 @@ public:
     return OSRSetTOWGS84( self, p1, p2, p3, p4, p5, p6, p7 );
   }
 
+  bool HasTOWGS84() {
+    double ignored[7];
+    return OSRGetTOWGS84( self, ignored, 7 ) == OGRERR_NONE;
+  }
+
   OGRErr GetTOWGS84( double argout[7] ) {
     return OSRGetTOWGS84( self, argout, 7 );
+  }
+
+  OGRErr AddGuessedTOWGS84() {
+    return OSRAddGuessedTOWGS84( self );
   }
 
   OGRErr SetLocalCS( const char *pszName ) {
@@ -1021,6 +1041,10 @@ public:
     return OSRExportToPrettyWkt( self, argout, simplify );
   }
 
+  OGRErr ExportToPROJJSON( char **argout, char **options = NULL ) {
+    return OSRExportToPROJJSON( self, argout, options );
+  }
+
   OGRErr ExportToProj4( char **argout ) {
     return OSRExportToProj4( self, argout );
   }
@@ -1075,6 +1099,12 @@ public:
   OSRSpatialReferenceShadow* ConvertToOtherProjection(const char* other_projection, char **options = NULL) {
     return OSRConvertToOtherProjection(self, other_projection, options);
   }
+
+%clear const char* name;
+  OGRErr PromoteTo3D( const char* name = NULL ) {
+    return OSRPromoteTo3D(self, name);
+  }
+%apply Pointer NONNULL {const char* name};
 
 } /* %extend */
 };
@@ -1399,6 +1429,15 @@ void SetPROJSearchPaths( char** paths )
 %}
 %clear (char **);
 
+%apply (char **CSL) {(char **)};
+%inline %{
+char** GetPROJSearchPaths()
+{
+    return OSRGetPROJSearchPaths();
+}
+%}
+%clear (char **);
+
 %inline %{
 int GetPROJVersionMajor()
 {
@@ -1411,6 +1450,13 @@ int GetPROJVersionMinor()
 {
     int num;
     OSRGetPROJVersion(NULL, &num, NULL);
+    return num;
+}
+
+int GetPROJVersionMicro()
+{
+    int num;
+    OSRGetPROJVersion(NULL, NULL, &num);
     return num;
 }
 %}

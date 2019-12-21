@@ -352,7 +352,8 @@ void GRIBRasterBand::FindPDSTemplate()
 
             CPLString osOctet;
             const int nTemplateFoundByteCount =
-                static_cast<int>(nSectSize - 9 - nCoordCount * 4);
+                nSectSize - 9U >= nCoordCount * 4U ?
+                    static_cast<int>(nSectSize - 9 - nCoordCount * 4) : 0;
             for( int i = 0; i < nTemplateFoundByteCount; i++ )
             {
                 char szByte[10] = { '\0' };
@@ -646,9 +647,15 @@ CPLErr GRIBRasterBand::LoadData()
             // all bands that have been accessed.
             if (poGDS->nCachedBytes > poGDS->nCachedBytesThreshold)
             {
+                GUIntBig nMinCacheSize = 1 + static_cast<GUIntBig>(poGDS->nRasterXSize) *
+                    poGDS->nRasterYSize * poGDS->nBands * GDALGetDataTypeSizeBytes(eDataType) / 1024 / 1024;
                 CPLDebug("GRIB",
                          "Maximum band cache size reached for this dataset. "
-                         "Caching only one band at a time from now");
+                         "Caching only one band at a time from now, which can "
+                         "negatively affect performance. Consider "
+                         "increasing GRIB_CACHEMAX to a higher value (in MB), "
+                         "at least " CPL_FRMT_GUIB " in that instance",
+                         nMinCacheSize);
                 for(int i = 0; i < poGDS->nBands; i++)
                 {
                     reinterpret_cast<GRIBRasterBand *>(
@@ -1956,12 +1963,7 @@ void GRIBDataset::SetGribMetaData(grib_MetaData *meta)
         // No projection, only latlon system (geographic).
         break;
     case GS3_ROTATED_LATLON:
-        CPLDebug("GRIB", "angleRotate=%f, southLat=%f, southLon=%f, poleLat=%f, poleLon=%f",
-                 meta->gds.angleRotate,
-                 meta->gds.southLat,
-                 meta->gds.southLon,
-                 meta->gds.poleLat,
-                 meta->gds.poleLon);
+        // will apply pole rotation afterwards
         break;
     case GS3_MERCATOR:
         if( meta->gds.orientLon == 0.0 )
@@ -2064,6 +2066,16 @@ void GRIBDataset::SetGribMetaData(grib_MetaData *meta)
         }
     }
 
+    if( meta->gds.projType == GS3_ROTATED_LATLON )
+    {
+        oSRS.SetDerivedGeogCRSWithPoleRotationGRIBConvention(
+            oSRS.GetName(),
+            meta->gds.southLat,
+            meta->gds.southLon > 180 ?
+                meta->gds.southLon - 360 : meta->gds.southLon,
+            meta->gds.angleRotate);
+    }
+
     OGRSpatialReference oLL;  // Construct the "geographic" part of oSRS.
     oLL.SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);
     oLL.CopyGeogCSFrom(&oSRS);
@@ -2093,7 +2105,7 @@ void GRIBDataset::SetGribMetaData(grib_MetaData *meta)
         rPixelSizeX = meta->gds.Dx;
         rPixelSizeY = meta->gds.Dy;
     }
-    else if( oSRS.IsProjected() )
+    else if( oSRS.IsProjected() && meta->gds.projType != GS3_ROTATED_LATLON )
     {
         // Longitude in degrees, to be transformed to meters (or degrees in
         // case of latlon).
@@ -2197,17 +2209,6 @@ void GRIBDataset::SetGribMetaData(grib_MetaData *meta)
     adfGeoTransform[3] = rMaxY;
     adfGeoTransform[1] = rPixelSizeX;
     adfGeoTransform[5] = -rPixelSizeY;
-
-    if( meta->gds.projType == GS3_ROTATED_LATLON &&
-        meta->gds.angleRotate == 0 )
-    {
-        oSRS.SetProjection( "Rotated_pole" );
-        oSRS.SetExtension(
-            "PROJCS", "PROJ4",
-            CPLSPrintf("+proj=ob_tran +lon_0=%.18g +o_proj=longlat +o_lon_p=0 "
-                       "+o_lat_p=%.18g +a=%.18g +b=%.18g +to_meter=0.0174532925199 +wktext",
-                       meta->gds.southLon, -meta->gds.southLat, a, b));
-    }
 
     if( bError )
         m_poSRS.reset();

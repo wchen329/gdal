@@ -2768,14 +2768,12 @@ class Layer(MajorObject):
             self.CreateField(i)
 
     def __iter__(self):
-        return self
-
-    def next(self):
-        feature = self.GetNextFeature()
-        if not feature:
-            raise StopIteration
-        else:
-            return feature
+        self.ResetReading()
+        while True:
+            feature = self.GetNextFeature()
+            if not feature:
+                break
+            yield feature
 
     def schema(self):
         output = []
@@ -5716,6 +5714,10 @@ def CreateGeometryFromJson(*args):
     """CreateGeometryFromJson(char const * input_string) -> Geometry"""
     return _ogr.CreateGeometryFromJson(*args)
 
+def CreateGeometryFromEsriJson(*args):
+    """CreateGeometryFromEsriJson(char const * input_string) -> Geometry"""
+    return _ogr.CreateGeometryFromEsriJson(*args)
+
 def BuildPolygonFromEdges(*args, **kwargs):
     """BuildPolygonFromEdges(Geometry hLineCollection, int bBestEffort=0, int bAutoClose=0, double dfTolerance=0) -> Geometry"""
     return _ogr.BuildPolygonFromEdges(*args, **kwargs)
@@ -7661,16 +7663,9 @@ class Geometry(_object):
         self.this = result.this
 
     def __iter__(self):
-        self.iter_subgeom = 0
-        return self
+        for i in range(self.GetGeometryCount()):
+            yield self.GetGeometryRef(i)
 
-    def next(self):
-        if self.iter_subgeom < self.GetGeometryCount():
-            subgeom = self.GetGeometryRef(self.iter_subgeom)
-            self.iter_subgeom += 1
-            return subgeom
-        else:
-            raise StopIteration
 
 Geometry_swigregister = _ogr.Geometry_swigregister
 Geometry_swigregister(Geometry)

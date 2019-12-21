@@ -5,6 +5,8 @@ VRT -- Virtual Format
 
 .. shortname:: VRT
 
+.. built_in_by_default::
+
 OGR Virtual Format is a driver that transforms features read from other
 drivers based on criteria specified in an XML control file. It is
 primarily used to derive spatial layers from flat tables with spatial
@@ -448,7 +450,7 @@ of this VRT file GDAL must be compiled with SQLite and SpatiaLite.
    <OGRVRTDataSource>
        <OGRVRTLayer name="polygons">
            <SrcDataSource>polygons.shp</SrcDataSource>
-           </OGRVRTLayer>
+       </OGRVRTLayer>
        <OGRVRTLayer name="polygons_as_simplified">
            <SrcDataSource>polygons.shp</SrcDataSource>
            <SrcSQL dialect="sqlite">SELECT Simplify(geometry,10) from polygons</SrcSQL>

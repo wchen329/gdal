@@ -98,7 +98,7 @@ static CPLErr NCDFPutAttr( int nCdfId, int nVarId,
 static CPLErr NCDFGet1DVar( int nCdfId, int nVarId, char **pszValue );
 static CPLErr NCDFPut1DVar( int nCdfId, int nVarId, const char *pszValue );
 
-static double NCDFGetDefaultNoDataValue( int nVarType );
+static double NCDFGetDefaultNoDataValue( int nCdfId, int nVarId, int nVarType, bool& bGotNoData );
 
 // Replace this where used.
 static char **NCDFTokenizeArray( const char *pszValue );
@@ -403,16 +403,28 @@ netCDFRasterBand::netCDFRasterBand( netCDFDataset *poNCDFDS,
         }
     }
 
-    // If NoData was not found, use the default value.
+    // If NoData was not found, use the default value, but for non-Byte types
+    // as it is not recommended:
+    // https://www.unidata.ucar.edu/software/netcdf/docs/attribute_conventions.html
     nc_type vartype = NC_NAT;
     if( !bGotNoData )
     {
         nc_inq_vartype(cdfid, nZId, &vartype);
-        dfNoData = NCDFGetDefaultNoDataValue(vartype);
-        // bGotNoData = true;
-        CPLDebug("GDAL_netCDF",
-                 "did not get nodata value for variable #%d, using default %f",
-                 nZId, dfNoData);
+        if( vartype != NC_CHAR &&
+            vartype != NC_BYTE
+#ifdef NETCDF_HAS_NC4
+            && vartype != NC_UBYTE
+#endif
+        )
+        {
+            dfNoData = NCDFGetDefaultNoDataValue(cdfid, nZId, vartype, bGotNoData);
+            if( bGotNoData )
+            {
+                CPLDebug("GDAL_netCDF",
+                        "did not get nodata value for variable #%d, using default %f",
+                        nZId, dfNoData);
+            }
+        }
     }
 
     // Look for valid_range or valid_min/valid_max.
@@ -446,6 +458,16 @@ netCDFRasterBand::netCDFRasterBand( netCDFDataset *poNCDFDS,
                     bValidRangeValid = true;
                 }
             }
+        }
+        if (bValidRangeValid && adfValidRange[0] > adfValidRange[1])
+        {
+            CPLError(
+                CE_Warning, CPLE_AppDefined,
+                "netCDFDataset::valid_range: min > max:\n"
+                "  min: %lf\n  max: %lf\n", adfValidRange[0], adfValidRange[1]);
+            bValidRangeValid = false;
+            adfValidRange[0] = 0.0;
+            adfValidRange[1] = 0.0;
         }
     }
 
@@ -537,11 +559,14 @@ netCDFRasterBand::netCDFRasterBand( netCDFDataset *poNCDFDS,
     CPLDebug("GDAL_netCDF", "netcdf type=%d gdal type=%d signedByte=%d",
              nc_datatype, eDataType, static_cast<int>(bSignedData));
 
-    // Set nodata value.
+    if( bGotNoData )
+    {
+        // Set nodata value.
 #ifdef NCDF_DEBUG
-    CPLDebug("GDAL_netCDF", "SetNoDataValue(%f) read", dfNoData);
+        CPLDebug("GDAL_netCDF", "SetNoDataValue(%f) read", dfNoData);
 #endif
-    netCDFRasterBand::SetNoDataValue(dfNoData);
+        netCDFRasterBand::SetNoDataValue(dfNoData);
+    }
 
     // Create Band Metadata.
     CreateBandMetadata(paDimIds, panExtraDimGroupIds, panExtraDimVarIds);
@@ -824,12 +849,21 @@ netCDFRasterBand::netCDFRasterBand( netCDFDataset *poNCDFDS,
             SetMetadataItem("PIXELTYPE", "SIGNEDBYTE", "IMAGE_STRUCTURE");
     }
 
-    // Set default nodata.
-    double dfNoData = NCDFGetDefaultNoDataValue(nc_datatype);
-#ifdef NCDF_DEBUG
-    CPLDebug("GDAL_netCDF", "SetNoDataValue(%f) default", dfNoData);
+    if( nc_datatype != NC_BYTE &&
+        nc_datatype != NC_CHAR
+#ifdef NETCDF_HAS_NC4
+        && nc_datatype != NC_UBYTE
 #endif
-    netCDFRasterBand::SetNoDataValue(dfNoData);
+        )
+    {
+        // Set default nodata.
+        bool bIgnored = false;
+        double dfNoData = NCDFGetDefaultNoDataValue(cdfid, nZId, nc_datatype, bIgnored);
+#ifdef NCDF_DEBUG
+        CPLDebug("GDAL_netCDF", "SetNoDataValue(%f) default", dfNoData);
+#endif
+        netCDFRasterBand::SetNoDataValue(dfNoData);
+    }
 
     SetBlockSize();
 }
@@ -3639,7 +3673,7 @@ void netCDFDataset::SetProjectionFromVar( int nGroupId, int nVarId,
                             xMinMax[0] = xMinMax[0] * satelliteHeight * 0.000001;
                             xMinMax[1] = xMinMax[1] * satelliteHeight * 0.000001;
                         }
-                        else if( EQUAL( szUnits, "rad" ) )
+                        else if( EQUAL( szUnits, "rad" ) || EQUAL( szUnits, "radian" ) )
                         {
                             xMinMax[0] = xMinMax[0] * satelliteHeight;
                             xMinMax[1] = xMinMax[1] * satelliteHeight;
@@ -3657,7 +3691,7 @@ void netCDFDataset::SetProjectionFromVar( int nGroupId, int nVarId,
                             yMinMax[0] = yMinMax[0] * satelliteHeight * 0.000001;
                             yMinMax[1] = yMinMax[1] * satelliteHeight * 0.000001;
                         }
-                        else if( EQUAL( szUnits, "rad" ) )
+                        else if( EQUAL( szUnits, "rad" ) || EQUAL( szUnits, "radian" ) )
                         {
                             yMinMax[0] = yMinMax[0] * satelliteHeight;
                             yMinMax[1] = yMinMax[1] * satelliteHeight;
@@ -6637,7 +6671,7 @@ bool netCDFDatasetCreateTempFile( NetCDFFormatEnum eFormat,
 
                         const size_t nDimSize = oMapDimIdToDimLen[nDimId];
                         if( nDimSize != 0 &&
-                            (nSize * nDimSize) / nDimSize != nSize )
+                            nSize > std::numeric_limits<size_t>::max() / nDimSize )
                         {
                             bFailed = true;
                             break;
@@ -6663,7 +6697,7 @@ bool netCDFDatasetCreateTempFile( NetCDFFormatEnum eFormat,
                         CSLDestroy(papszTokens);
                         continue;
                     }
-                    if( nTotalVarSize + nSize < nTotalVarSize ||
+                    if( nTotalVarSize > std::numeric_limits<size_t>::max() - nSize ||
                         nTotalVarSize + nSize > 100 * 1024 * 1024 )
                     {
                         CPLDebug("netCDF",
@@ -6911,7 +6945,7 @@ bool netCDFDatasetCreateTempFile( NetCDFFormatEnum eFormat,
                 {
                     const size_t nDimSize = oMapDimIdToDimLen[aoDimIds[i]];
                     if( nDimSize != 0 &&
-                        (nSize * nDimSize) / nDimSize != nSize )
+                        nSize > std::numeric_limits<size_t>::max() / nDimSize )
                     {
                         nSize = 0;
                     }
@@ -10400,42 +10434,112 @@ static CPLErr NCDFPut1DVar( int nCdfId, int nVarId, const char *pszValue )
 /*                           GetDefaultNoDataValue()                    */
 /************************************************************************/
 
-double NCDFGetDefaultNoDataValue( int nVarType )
+double NCDFGetDefaultNoDataValue( int nCdfId, int nVarId, int nVarType, bool& bGotNoData )
 
 {
+    int nNoFill = 0;
     double dfNoData = 0.0;
 
     switch( nVarType )
     {
+    case NC_CHAR:
     case NC_BYTE:
 #ifdef NETCDF_HAS_NC4
     case NC_UBYTE:
 #endif
         // Don't do default fill-values for bytes, too risky.
-        dfNoData = 0.0;
-        break;
-    case NC_CHAR:
-        dfNoData = NC_FILL_CHAR;
+        // This function should not be called in those cases.
+        CPLAssert(false);
         break;
     case NC_SHORT:
-        dfNoData = NC_FILL_SHORT;
+    {
+        short nFillVal = 0;
+        if( nc_inq_var_fill( nCdfId, nVarId, &nNoFill, &nFillVal ) == NC_NOERR )
+        {
+            if( !nNoFill )
+            {
+                bGotNoData = true;
+                dfNoData = nFillVal;
+            }
+        }
+        else
+            dfNoData = NC_FILL_SHORT;
         break;
+    }
     case NC_INT:
-        dfNoData = NC_FILL_INT;
+    {
+        int nFillVal = 0;
+        if( nc_inq_var_fill( nCdfId, nVarId, &nNoFill, &nFillVal ) == NC_NOERR )
+        {
+            if( !nNoFill )
+            {
+                bGotNoData = true;
+                dfNoData = nFillVal;
+            }
+        }
+        else
+            dfNoData = NC_FILL_INT;
         break;
+    }
     case NC_FLOAT:
-        dfNoData = NC_FILL_FLOAT;
+    {
+        float fFillVal = 0;
+        if( nc_inq_var_fill( nCdfId, nVarId, &nNoFill, &fFillVal ) == NC_NOERR )
+        {
+            if( !nNoFill )
+            {
+                bGotNoData = true;
+                dfNoData = fFillVal;
+            }
+        }
+        else
+            dfNoData = NC_FILL_FLOAT;
         break;
+    }
     case NC_DOUBLE:
-        dfNoData = NC_FILL_DOUBLE;
+    {
+        if( nc_inq_var_fill( nCdfId, nVarId, &nNoFill, &dfNoData ) == NC_NOERR )
+        {
+            if( !nNoFill )
+            {
+                bGotNoData = true;
+            }
+        }
+        else
+            dfNoData = NC_FILL_DOUBLE;
         break;
+    }
 #ifdef NETCDF_HAS_NC4
     case NC_USHORT:
-        dfNoData = NC_FILL_USHORT;
+    {
+        unsigned short nFillVal = 0;
+        if( nc_inq_var_fill( nCdfId, nVarId, &nNoFill, &nFillVal ) == NC_NOERR )
+        {
+            if( !nNoFill )
+            {
+                bGotNoData = true;
+                dfNoData = nFillVal;
+            }
+        }
+        else
+            dfNoData = NC_FILL_USHORT;
         break;
+    }
     case NC_UINT:
-        dfNoData = NC_FILL_UINT;
+    {
+        unsigned int nFillVal = 0;
+        if( nc_inq_var_fill( nCdfId, nVarId, &nNoFill, &nFillVal ) == NC_NOERR )
+        {
+            if( !nNoFill )
+            {
+                bGotNoData = true;
+                dfNoData = nFillVal;
+            }
+        }
+        else
+            dfNoData = NC_FILL_UINT;
         break;
+    }
 #endif
     default:
         dfNoData = 0.0;
@@ -11553,31 +11657,34 @@ bool NCDFIsUserDefinedType(int ncid, int type)
     //Which is not a part of netcdf 4.1.1 installed on RH
     //In all later version, type >= NC_FIRSTUSERTYPEID works
 #if NETCDF_HAS_NC4
+#  ifdef NC_FIRSTUSERTYPEID
+    CPL_IGNORE_RET_VAL(ncid);
+    return type >= NC_FIRSTUSERTYPEID;
+#  else
     int ntypes;
-    int typeids[NC_MAX_VARS];  // It's likely safe to assume there are
-    int rootid; //For nested datasets
+    int typeids[NC_MAX_VARS];
 
-    if (NCDFGetRootGroup(ncid, &rootid) != CE_None)
+    while( true )
     {
-        CPLError(CE_Failure, CPLE_AppDefined,
-                "Could not get root group information for user defined types");
-        return false;
+        int err = nc_inq_typeids(ncid, &ntypes, typeids);
+        if (err != NC_NOERR)
+            CPLError(CE_Failure, CPLE_AppDefined,
+                    "Could not get user defined type information");
+
+        for (int i = 0; i < ntypes; ++i) {
+            if (type == typeids[i])
+                return true;
+        }
+
+        int nParentGroupId;
+        int status = nc_inq_grp_parent(ncid, &nParentGroupId);
+        if( status != NC_NOERR )
+            break;
+        ncid = nParentGroupId;
     }
-
-    int err = nc_inq_typeids(rootid, &ntypes, typeids);
-    if (err != NC_NOERR)
-        CPLError(CE_Failure, CPLE_AppDefined,
-                "Could not get user defined type information");
-
-    for (int i = 0; i < ntypes; ++i) {
-        if (type == typeids[i])
-            return true;
-    }
-
     return false;
+#  endif
 #else
     return false;
 #endif
 }
-
-

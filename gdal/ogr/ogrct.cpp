@@ -680,13 +680,19 @@ int OGRProjCT::Initialize( const OGRSpatialReference * poSourceIn,
     {
         bSourceWrap = true;
         bTargetWrap = true;
+        // coverity[tainted_data]
         dfSourceWrapLong = dfTargetWrapLong =
             CPLAtof(CPLGetConfigOption( "CENTER_LONG", "" ));
         CPLDebug( "OGRCT", "Wrap at %g.", dfSourceWrapLong );
     }
 
-    const char *pszCENTER_LONG =
-        poSRSSource ? poSRSSource->GetExtension( "GEOGCS", "CENTER_LONG" ) : nullptr;
+    const char *pszCENTER_LONG;
+    {
+        CPLErrorStateBackuper oErrorStateBackuper;
+        CPLErrorHandlerPusher oErrorHandler(CPLQuietErrorHandler);
+        pszCENTER_LONG =
+            poSRSSource ? poSRSSource->GetExtension( "GEOGCS", "CENTER_LONG" ) : nullptr;
+    }
     if( pszCENTER_LONG != nullptr )
     {
         dfSourceWrapLong = CPLAtof(pszCENTER_LONG);
@@ -700,7 +706,12 @@ int OGRProjCT::Initialize( const OGRSpatialReference * poSourceIn,
         CPLDebug( "OGRCT", "Wrap source at %g.", dfSourceWrapLong );
     }
 
-    pszCENTER_LONG = poSRSTarget ? poSRSTarget->GetExtension( "GEOGCS", "CENTER_LONG" ) : nullptr;
+    {
+        CPLErrorStateBackuper oErrorStateBackuper;
+        CPLErrorHandlerPusher oErrorHandler(CPLQuietErrorHandler);
+        pszCENTER_LONG = poSRSTarget ?
+            poSRSTarget->GetExtension( "GEOGCS", "CENTER_LONG" ) : nullptr;
+    }
     if( pszCENTER_LONG != nullptr )
     {
         dfTargetWrapLong = CPLAtof(pszCENTER_LONG);
@@ -719,11 +730,17 @@ int OGRProjCT::Initialize( const OGRSpatialReference * poSourceIn,
 
     // The threshold is experimental. Works well with the cases of ticket #2305.
     if( bSourceLatLong )
+    {
+        // coverity[tainted_data]
         dfThreshold = CPLAtof(CPLGetConfigOption( "THRESHOLD", ".1" ));
+    }
     else
+    {
         // 1 works well for most projections, except for +proj=aeqd that
         // requires a tolerance of 10000.
+        // coverity[tainted_data]
         dfThreshold = CPLAtof(CPLGetConfigOption( "THRESHOLD", "10000" ));
+    }
 
     // Detect webmercator to WGS84
     OGRAxisOrientation orientAxis0, orientAxis1;
@@ -823,38 +840,42 @@ int OGRProjCT::Initialize( const OGRSpatialReference * poSourceIn,
     }
     else if( !bWebMercatorToWGS84LongLat )
     {
-        const char* const apszOptions[] = { "FORMAT=WKT2_2018", nullptr };
-        char* pszSrcSRS = nullptr;
+        const auto CanUseAuthorityDef = [](const OGRSpatialReference* poSRS1,
+                                           OGRSpatialReference* poSRSFromAuth,
+                                           const char* pszAuth)
         {
-            // If we have a AUTH:CODE attached, use it to retrieve the full
-            // definition in case a trip to WKT1 has lost the area of use.
-            const char* pszAuth = poSRSSource->GetAuthorityName(nullptr);
-            const char* pszCode = poSRSSource->GetAuthorityCode(nullptr);
-            if( pszAuth && pszCode )
+            if( EQUAL(pszAuth, "EPSG") &&
+                CPLTestBool(CPLGetConfigOption("OSR_CT_USE_DEFAULT_EPSG_TOWGS84", "NO")) )
             {
-                CPLString osAuthCode(pszAuth);
-                osAuthCode += ':';
-                osAuthCode += pszCode;
-                OGRSpatialReference oTmpSRS;
-                oTmpSRS.SetFromUserInput(osAuthCode);
-                oTmpSRS.SetDataAxisToSRSAxisMapping(poSRSSource->GetDataAxisToSRSAxisMapping());
-                if( oTmpSRS.IsSame(poSRSSource) )
-                {
-                    pszSrcSRS = CPLStrdup(osAuthCode);
-                }
-            }
-            if( pszSrcSRS == nullptr )
-            {
-                poSRSSource->exportToWkt(&pszSrcSRS, apszOptions);
-            }
-        }
+                // We don't want by default to honour 'default' TOWGS84 terms that come with the EPSG code
+                // because there might be a better transformation from that
+                // Typical case if EPSG:31468 "DHDN / 3-degree Gauss-Kruger zone 4"
+                // where the DHDN->TOWGS84 transformation can use the BETA2007.gsb grid
+                // instead of TOWGS84[598.1,73.7,418.2,0.202,0.045,-2.455,6.7]
+                // But if the user really wants it, it can set the
+                // OSR_CT_USE_DEFAULT_EPSG_TOWGS84 configuration option to YES
+                double adfTOWGS84_1[7];
+                double adfTOWGS84_2[7];
 
-        char* pszTargetSRS = nullptr;
+                poSRSFromAuth->AddGuessedTOWGS84();
+
+                if( poSRS1->GetTOWGS84(adfTOWGS84_1) == OGRERR_NONE &&
+                    poSRSFromAuth->GetTOWGS84(adfTOWGS84_2) == OGRERR_NONE &&
+                    memcmp(adfTOWGS84_1, adfTOWGS84_2, sizeof(adfTOWGS84_1)) == 0 )
+                {
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        const auto exportSRSToText = [&CanUseAuthorityDef](const OGRSpatialReference* poSRS)
         {
+            char* pszText = nullptr;
             // If we have a AUTH:CODE attached, use it to retrieve the full
             // definition in case a trip to WKT1 has lost the area of use.
-            const char* pszAuth = poSRSTarget->GetAuthorityName(nullptr);
-            const char* pszCode = poSRSTarget->GetAuthorityCode(nullptr);
+            const char* pszAuth = poSRS->GetAuthorityName(nullptr);
+            const char* pszCode = poSRS->GetAuthorityCode(nullptr);
             if( pszAuth && pszCode )
             {
                 CPLString osAuthCode(pszAuth);
@@ -862,17 +883,33 @@ int OGRProjCT::Initialize( const OGRSpatialReference * poSourceIn,
                 osAuthCode += pszCode;
                 OGRSpatialReference oTmpSRS;
                 oTmpSRS.SetFromUserInput(osAuthCode);
-                oTmpSRS.SetDataAxisToSRSAxisMapping(poSRSTarget->GetDataAxisToSRSAxisMapping());
-                if( oTmpSRS.IsSame(poSRSTarget) )
+                oTmpSRS.SetDataAxisToSRSAxisMapping(poSRS->GetDataAxisToSRSAxisMapping());
+                if( oTmpSRS.IsSame(poSRS) )
                 {
-                    pszTargetSRS = CPLStrdup(osAuthCode);
+                    if( CanUseAuthorityDef(poSRS, &oTmpSRS, pszAuth) )
+                    {
+                        pszText = CPLStrdup(osAuthCode);
+                    }
                 }
             }
-            if( pszTargetSRS == nullptr )
+            if( pszText == nullptr )
             {
-                poSRSTarget->exportToWkt(&pszTargetSRS, apszOptions);
+                CPLErrorStateBackuper oErrorStateBackuper;
+                CPLErrorHandlerPusher oErrorHandler(CPLQuietErrorHandler);
+                const char *pszProjName = poSRS->GetAttrValue("PROJECTION");
+                const char* const apszOptionsWKT2_2018[] = { "FORMAT=WKT2_2018", nullptr };
+                const char* const apszOptionsWKT1[] = { "FORMAT=WKT1_GDAL", nullptr };
+                // NetCDF hack
+                if( pszProjName && EQUAL(pszProjName, "Rotated_pole") )
+                    poSRS->exportToWkt(&pszText, apszOptionsWKT1);
+                else
+                    poSRS->exportToWkt(&pszText, apszOptionsWKT2_2018);
             }
-        }
+            return pszText;
+        };
+
+        char* pszSrcSRS = exportSRSToText(poSRSSource);
+        char* pszTargetSRS = exportSRSToText(poSRSTarget);
 
         if( !ListCoordinateOperations(pszSrcSRS, pszTargetSRS, options) )
         {

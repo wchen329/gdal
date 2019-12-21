@@ -192,6 +192,8 @@ class CPL_DLL OGRSpatialReference
     OGRErr      exportToWkt( char ** ) const;
     OGRErr      exportToWkt( char ** ppszWKT, const char* const* papszOptions ) const;
     OGRErr      exportToPrettyWkt( char **, int = FALSE) const;
+    // cppcheck-suppress functionStatic
+    OGRErr      exportToPROJJSON( char **, const char* const* papszOptions ) const;
     OGRErr      exportToProj4( char ** ) const;
     OGRErr      exportToPCI( char **, char **, double ** ) const;
     OGRErr      exportToUSGS( long *, long *, double **, long * ) const;
@@ -356,12 +358,16 @@ class CPL_DLL OGRSpatialReference
                                const OGRSpatialReference *poHorizSRS,
                                const OGRSpatialReference *poVertSRS );
 
+    // cppcheck-suppress functionStatic
+    OGRErr      PromoteTo3D( const char* pszName );
+
     OGRErr      SetFromUserInput( const char * );
 
     OGRErr      SetTOWGS84( double, double, double,
                             double = 0.0, double = 0.0, double = 0.0,
                             double = 0.0 );
     OGRErr      GetTOWGS84( double *padfCoef, int nCoeff = 7 ) const;
+    OGRErr      AddGuessedTOWGS84();
 
     double      GetSemiMajor( OGRErr * = nullptr ) const;
     double      GetSemiMinor( OGRErr * = nullptr ) const;
@@ -634,6 +640,22 @@ class CPL_DLL OGRSpatialReference
     /** Spherical, Cross-track, Height */
     OGRErr      SetSCH( double dfPegLat, double dfPegLong,
                         double dfPegHeading, double dfPegHgt);
+
+    /** Vertical Perspective / Near-sided Perspective */
+    OGRErr      SetVerticalPerspective( double dfTopoOriginLat,
+                                        double dfTopoOriginLon,
+                                        double dfTopoOriginHeight,
+                                        double dfViewPointHeight,
+                                        double dfFalseEasting,
+                                        double dfFalseNorthing);
+
+    /** Pole rotation (GRIB convention) */
+    OGRErr      SetDerivedGeogCRSWithPoleRotationGRIBConvention(
+                                               const char* pszCRSName,
+                                               double dfSouthPoleLat,
+                                               double dfSouthPoleLon,
+                                               double dfAxisRotation );
+
     /** State Plane */
     OGRErr      SetStatePlane( int nZone, int bNAD83 = TRUE,
                                const char *pszOverrideUnitName = nullptr,

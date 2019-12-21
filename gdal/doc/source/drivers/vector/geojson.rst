@@ -5,6 +5,8 @@ GeoJSON
 
 .. shortname:: GeoJSON
 
+.. built_in_by_default::
+
 This driver implements read/write support for access to features encoded
 in `GeoJSON <http://geojson.org/>`__ format. GeoJSON is a dialect based
 on the `JavaScript Object Notation (JSON) <http://json.org/>`__. JSON is
@@ -148,6 +150,8 @@ Environment variables
    geometries: YES - wrap geometries with OGRGeometryCollection type
 -  **ATTRIBUTES_SKIP** - controls translation of attributes: YES - skip
    all attributes
+-  **OGR_GEOJSON_MAX_OBJ_SIZE** - (GDAL >= 3.0.2) size in MBytes of the maximum
+   accepted single feature, default value is 200MB
 
 Open options
 ------------

@@ -1,4 +1,4 @@
-/******************************************************************************
+ /******************************************************************************
  *
  * Project:  Memory Array Translator
  * Purpose:  Complete implementation.
@@ -266,12 +266,12 @@ CPLErr MEMRasterBand::IRasterIO( GDALRWFlag eRWFlag,
         for( int iLine=0; iLine < nYSize; iLine++ )
         {
             GDALCopyWords(
-                pabyData + nLineOffset*static_cast<size_t>(iLine + nYOff) +
+                pabyData + nLineOffset*static_cast<GPtrDiff_t>(iLine + nYOff) +
                 nXOff*nPixelOffset,
                 eDataType,
                 static_cast<int>(nPixelOffset),
                 reinterpret_cast<GByte*>( pData ) +
-                nLineSpaceBuf * static_cast<size_t>(iLine),
+                nLineSpaceBuf * static_cast<GPtrDiff_t>(iLine),
                 eBufType,
                 static_cast<int>(nPixelSpaceBuf),
                 nXSize );
@@ -283,10 +283,10 @@ CPLErr MEMRasterBand::IRasterIO( GDALRWFlag eRWFlag,
         {
             GDALCopyWords(
                 reinterpret_cast<GByte *>( pData ) +
-                nLineSpaceBuf*(size_t)iLine,
+                nLineSpaceBuf*static_cast<GPtrDiff_t>(iLine),
                 eBufType,
                 static_cast<int>(nPixelSpaceBuf),
-                pabyData + nLineOffset*static_cast<size_t>(iLine + nYOff) +
+                pabyData + nLineOffset*static_cast<GPtrDiff_t>(iLine + nYOff) +
                 nXOff*nPixelOffset,
                 eDataType,
                 static_cast<int>(nPixelOffset),
@@ -1374,7 +1374,7 @@ GDALDataset *MEMDataset::Open( GDALOpenInfo * poOpenInfo )
 
     poDS->nRasterXSize = atoi(CSLFetchNameValue(papszOptions,"PIXELS"));
     poDS->nRasterYSize = atoi(CSLFetchNameValue(papszOptions,"LINES"));
-    poDS->eAccess = GA_Update;
+    poDS->eAccess = poOpenInfo->eAccess;
 
 /* -------------------------------------------------------------------- */
 /*      Extract other information.                                      */
@@ -2110,12 +2110,12 @@ bool MEMAbstractMDArray::Init(GByte* pData,
             --i;
             const auto& poDim = m_aoDims[i];
             auto nDimSize = poDim->GetSize();
-            auto nNewSize = nTotalSize * nDimSize;
-            if( nNewSize / nDimSize != nTotalSize )
+            if( nDimSize != 0 && nTotalSize > std::numeric_limits<GUInt64>::max() / nDimSize )
             {
                 CPLError(CE_Failure, CPLE_OutOfMemory, "Too big allocation");
                 return false;
             }
+            auto nNewSize = nTotalSize * nDimSize;
             if( anStrides.empty() )
                 m_anStrides[i] = static_cast<size_t>(nTotalSize);
             nTotalSize = nNewSize;
@@ -2608,11 +2608,6 @@ std::shared_ptr<GDALDimension> MEMGroup::CreateDimension(const std::string& osNa
                                                          GUInt64 nSize,
                                                          CSLConstList)
 {
-    if( nSize == 0 )
-    {
-        CPLError(CE_Failure, CPLE_AppDefined, "Invalid size");
-        return nullptr;
-    }
     if( osName.empty() )
     {
         CPLError(CE_Failure, CPLE_NotSupported,
